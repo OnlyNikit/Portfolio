@@ -41,7 +41,7 @@ export const DICTIONARY = {
   skills_heading: { en: 'Mastered Technologies & Frameworks', hi: 'सीखे गए टूल्स और टेक्नोलॉजीज' },
 
   // Journey
-  journey_badge: { en: 'Academic Milestones', hi: 'शिक्षा और शैक्षणिक सफर' },
+  journey_badge: { en: 'THE JOURNEY', hi: 'मेरी यात्रा' },
   journey_heading: { en: 'Academic Milestones & Institutions', hi: 'शैक्षणिक संस्थान और उपलब्धियां' },
   journey_present: { en: 'Present', hi: 'वर्तमान' },
 

@@ -27,12 +27,12 @@ export function JourneySection() {
             02. {t('journey_badge').toUpperCase()}
           </div>
           <h2 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight font-heading">
-            {language === 'hi' ? t('journey_heading') : 'The Academic Journey.'}
+            {language === 'hi' ? t('journey_heading') : 'The Journey.'}
           </h2>
           <p className="text-slate-400 text-sm sm:text-base">
             {language === 'hi'
-              ? 'स्कूली शिक्षा से लेकर आर्टिफिशियल इंटेलिजेंस और फुल-स्टैक वेब डेवलपमेंट तक का सफर।'
-              : 'From foundational school sciences to engineering artificial intelligence architectures and full-stack software.'}
+              ? 'जो सफर बचपन में technology के प्रति curiosity से शुरू हुआ, वह आज learning, experimenting, freelancing और real-world products बनाने की journey बन चुका है।'
+              : 'What started with a childhood curiosity about technology turned into a journey of learning, experimenting, freelancing, and building real-world products.'}
           </p>
         </div>
 
