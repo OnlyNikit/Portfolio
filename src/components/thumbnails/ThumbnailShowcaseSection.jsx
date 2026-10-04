@@ -58,7 +58,7 @@ export function ThumbnailShowcaseSection({
 
         {featuredThumbnails.length === 0 && (
           <div className="p-10 text-center text-slate-500 font-mono text-sm rounded-3xl bg-[#0c1022] border border-white/[0.06]">
-            Thumbnails jaldi hi add honge.
+            Thumbnails will be added soon.
           </div>
         )}
 
