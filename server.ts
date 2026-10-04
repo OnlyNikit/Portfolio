@@ -1,7 +1,10 @@
+import 'dotenv/config'; // sabse pehle: baaki imports se pehle .env load ho
+
 import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import path from 'path';
+import fs from 'fs';
 import cookieParser from 'cookie-parser';
-import dotenv from 'dotenv';
 
 import { dbService } from './server/services/db.ts';
 
@@ -15,8 +18,6 @@ import { messagesRouter } from './server/routes/messagesRoutes.ts';
 import { settingsRouter } from './server/routes/settingsRoutes.ts';
 import { mediaRouter } from './server/routes/mediaRoutes.ts';
 
-dotenv.config();
-
 const app = express();
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -26,22 +27,13 @@ const PORT =
     ? parseInt(process.env.PORT, 10)
     : 3000;
 
-
 // --------------------------------------------------
 // Middleware
 // --------------------------------------------------
 
 app.use(express.json({ limit: '25mb' }));
-
-app.use(
-  express.urlencoded({
-    extended: true,
-    limit: '25mb',
-  })
-);
-
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(cookieParser());
-
 
 // --------------------------------------------------
 // API Routes
@@ -57,11 +49,7 @@ app.use('/api/messages', messagesRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/media', mediaRouter);
 
-
-// --------------------------------------------------
 // Health Check
-// --------------------------------------------------
-
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'healthy',
@@ -70,6 +58,10 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// Unknown API route -> JSON 404 (HTML nahi)
+app.use('/api', (_req, res) => {
+  res.status(404).json({ success: false, message: 'API route not found' });
+});
 
 // --------------------------------------------------
 // Start Server
@@ -77,25 +69,18 @@ app.get('/api/health', (_req, res) => {
 
 async function startServer() {
   try {
-    // MongoDB must be connected before server starts
+    // MongoDB connect hone ke baad hi server start hoga
     await dbService.init();
-
     console.log('Database initialized successfully');
 
-
     // ------------------------------------------------
-    // Development
+    // Development (Vite middleware)
     // ------------------------------------------------
-
     if (!isProduction) {
-      const { createServer: createViteServer } =
-        await import('vite');
+      const { createServer: createViteServer } = await import('vite');
 
       const vite = await createViteServer({
-        server: {
-          middlewareMode: true,
-          hmr: false,
-        },
+        server: { middlewareMode: true, hmr: false },
         appType: 'spa',
       });
 
@@ -105,36 +90,19 @@ async function startServer() {
       app.use('*', async (req, res, next) => {
         const url = req.originalUrl;
 
-        // Never interfere with API routes
-        if (
-          url.startsWith('/api')
-        ) {
+        if (url.startsWith('/api')) {
           return next();
         }
 
         try {
-          const indexPath = path.resolve(
-            process.cwd(),
-            'index.html'
-          );
+          const indexPath = path.resolve(process.cwd(), 'index.html');
+          let template = fs.readFileSync(indexPath, 'utf-8');
 
-          const fs = await import('fs');
-
-          let template = fs.readFileSync(
-            indexPath,
-            'utf-8'
-          );
-
-          template = await vite.transformIndexHtml(
-            url,
-            template
-          );
+          template = await vite.transformIndexHtml(url, template);
 
           res
             .status(200)
-            .set({
-              'Content-Type': 'text/html',
-            })
+            .set({ 'Content-Type': 'text/html' })
             .end(template);
         } catch (error) {
           vite.ssrFixStacktrace(error as Error);
@@ -143,65 +111,60 @@ async function startServer() {
       });
     }
 
-
     // ------------------------------------------------
-    // Production
+    // Production (built files)
     // ------------------------------------------------
-
     else {
-      const distPath = path.resolve(
-        process.cwd(),
-        'dist'
-      );
+      const distPath = path.resolve(process.cwd(), 'dist');
 
-      app.use(
-        express.static(distPath)
-      );
+      app.use(express.static(distPath));
 
       // React SPA fallback
       app.get('*', (_req, res) => {
-        res.sendFile(
-          path.join(
-            distPath,
-            'index.html'
-          )
-        );
+        res.sendFile(path.join(distPath, 'index.html'));
       });
     }
 
+    // ------------------------------------------------
+    // Global error handler (sabse last mein)
+    // ------------------------------------------------
+    app.use(
+      (err: any, _req: Request, res: Response, _next: NextFunction) => {
+        console.error('Unhandled error:', err);
+
+        if (err?.type === 'entity.too.large') {
+          return res.status(413).json({
+            success: false,
+            message: 'File bahut badi hai. Chhoti image (max ~15MB) upload karo.',
+          });
+        }
+
+        if (err?.type === 'entity.parse.failed') {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid JSON request',
+          });
+        }
+
+        res.status(err?.status || 500).json({
+          success: false,
+          message: err?.message || 'Internal server error',
+        });
+      }
+    );
 
     // ------------------------------------------------
     // Start HTTP Server
     // ------------------------------------------------
-
-    const server = app.listen(
-      PORT,
-      '0.0.0.0',
-      () => {
-        console.log(
-          `Server running on port ${PORT}`
-        );
-      }
-    );
-
-
-    // ------------------------------------------------
-    // Server Error
-    // ------------------------------------------------
-
-    server.on('error', (error: unknown) => {
-      console.error(
-        'Server error:',
-        error
-      );
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on port ${PORT}`);
     });
 
+    server.on('error', (error: unknown) => {
+      console.error('Server error:', error);
+    });
   } catch (error) {
-    console.error(
-      'Failed to start server:',
-      error
-    );
-
+    console.error('Failed to start server:', error);
     process.exit(1);
   }
 }

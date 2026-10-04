@@ -14,201 +14,129 @@ function createSlug(value: string): string {
     .replace(/-+/g, '-');
 }
 
-/**
- * PUBLIC - Published projects
- */
+/** PUBLIC - sirf published projects */
 projectsRouter.get('/', async (_req: Request, res: Response) => {
   try {
-    const projects = await dbService.getProjects(false);
-
-    res.json({
-      success: true,
-      projects,
-    });
+    const projects = await dbService.getProjects(true);
+    res.json({ success: true, projects });
   } catch (error) {
     console.error('Get projects error:', error);
-
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch projects',
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch projects' });
   }
 });
 
-/**
- * ADMIN - All projects
- *
- * IMPORTANT:
- * This must stay before /:slug
- */
-projectsRouter.get(
-  '/all',
-  requireAdmin,
-  async (_req: Request, res: Response) => {
-    try {
-      const projects = await dbService.getProjects(true);
+/** ADMIN - saare projects (drafts bhi). /:slug se pehle rehna chahiye */
+projectsRouter.get('/all', requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const projects = await dbService.getProjects(false);
+    res.json({ success: true, projects });
+  } catch (error) {
+    console.error('Get all projects error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch projects' });
+  }
+});
 
-      res.json({
-        success: true,
-        projects,
-      });
-    } catch (error) {
-      console.error('Get all projects error:', error);
+/** PUBLIC - slug se project */
+projectsRouter.get('/:slug', async (req: Request, res: Response) => {
+  try {
+    const project = await dbService.getProjectBySlug(req.params.slug);
 
-      res.status(500).json({
+    if (!project || project.published === false) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    res.json({ success: true, project });
+  } catch (error) {
+    console.error('Get project error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch project' });
+  }
+});
+
+/** ADMIN - create */
+projectsRouter.post('/', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const data = req.body || {};
+
+    if (!data.name || !String(data.name).trim()) {
+      return res.status(400).json({ success: false, message: 'Project name is required' });
+    }
+    if (!data.shortDescription || !String(data.shortDescription).trim()) {
+      return res.status(400).json({ success: false, message: 'Short description is required' });
+    }
+    if (!data.coverImage || !String(data.coverImage).trim()) {
+      return res.status(400).json({ success: false, message: 'Cover image is required' });
+    }
+
+    const { _id, createdAt, ...rest } = data;
+
+    const project = await dbService.addProject({
+      ...rest,
+      name: String(data.name).trim(),
+      slug: data.slug
+        ? createSlug(String(data.slug))
+        : createSlug(String(data.name))
+    });
+
+    res.status(201).json({ success: true, project });
+  } catch (error: any) {
+    console.error('Create project error:', error);
+
+    if (error?.code === 11000) {
+      return res.status(409).json({
         success: false,
-        message: 'Failed to fetch projects',
+        message: 'Is naam/slug ka project pehle se hai. Naam change karo.'
       });
     }
+
+    res.status(500).json({ success: false, message: 'Failed to create project' });
   }
-);
+});
 
-/**
- * PUBLIC - Get project by slug
- */
-projectsRouter.get(
-  '/:slug',
-  async (req: Request, res: Response) => {
-    try {
-      const { slug } = req.params;
+/** ADMIN - update */
+projectsRouter.put('/:id', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const data = { ...req.body };
 
-      const project = await dbService.getProjectBySlug(slug);
+    if (data.name && !data.slug) {
+      data.slug = createSlug(String(data.name));
+    }
+    if (data.slug) {
+      data.slug = createSlug(String(data.slug));
+    }
 
-      if (!project || project.published === false) {
-        return res.status(404).json({
-          success: false,
-          message: 'Project not found',
-        });
-      }
+    const project = await dbService.updateProject(req.params.id, data);
 
-      res.json({
-        success: true,
-        project,
-      });
-    } catch (error) {
-      console.error('Get project error:', error);
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
 
-      res.status(500).json({
+    res.json({ success: true, project });
+  } catch (error: any) {
+    console.error('Update project error:', error);
+
+    if (error?.code === 11000) {
+      return res.status(409).json({
         success: false,
-        message: 'Failed to fetch project',
+        message: 'Is slug ka project pehle se hai.'
       });
     }
+
+    res.status(500).json({ success: false, message: 'Failed to update project' });
   }
-);
+});
 
-/**
- * ADMIN - Create project
- */
-projectsRouter.post(
-  '/',
-  requireAdmin,
-  async (req: Request, res: Response) => {
-    try {
-      const data = req.body;
+/** ADMIN - delete */
+projectsRouter.delete('/:id', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const deleted = await dbService.deleteProject(req.params.id);
 
-      if (!data.name) {
-        return res.status(400).json({
-          success: false,
-          message: 'Project name is required',
-        });
-      }
-
-      const project = await dbService.addProject({
-        ...data,
-        name: String(data.name).trim(),
-        slug: data.slug
-          ? createSlug(String(data.slug))
-          : createSlug(String(data.name)),
-      });
-
-      res.status(201).json({
-        success: true,
-        project,
-      });
-    } catch (error) {
-      console.error('Create project error:', error);
-
-      res.status(500).json({
-        success: false,
-        message: 'Failed to create project',
-      });
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
     }
+
+    res.json({ success: true, message: 'Project deleted successfully' });
+  } catch (error) {
+    console.error('Delete project error:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete project' });
   }
-);
-
-/**
- * ADMIN - Update project
- */
-projectsRouter.put(
-  '/:id',
-  requireAdmin,
-  async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const data = { ...req.body };
-
-      if (data.name && !data.slug) {
-        data.slug = createSlug(String(data.name));
-      }
-
-      if (data.slug) {
-        data.slug = createSlug(String(data.slug));
-      }
-
-      const project = await dbService.updateProject(id, data);
-
-      if (!project) {
-        return res.status(404).json({
-          success: false,
-          message: 'Project not found',
-        });
-      }
-
-      res.json({
-        success: true,
-        project,
-      });
-    } catch (error) {
-      console.error('Update project error:', error);
-
-      res.status(500).json({
-        success: false,
-        message: 'Failed to update project',
-      });
-    }
-  }
-);
-
-/**
- * ADMIN - Delete project
- */
-projectsRouter.delete(
-  '/:id',
-  requireAdmin,
-  async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-
-      const deleted = await dbService.deleteProject(id);
-
-      if (!deleted) {
-        return res.status(404).json({
-          success: false,
-          message: 'Project not found',
-        });
-      }
-
-      res.json({
-        success: true,
-        message: 'Project deleted successfully',
-      });
-    } catch (error) {
-      console.error('Delete project error:', error);
-
-      res.status(500).json({
-        success: false,
-        message: 'Failed to delete project',
-      });
-    }
-  }
-);
+});

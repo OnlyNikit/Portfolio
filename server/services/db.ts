@@ -12,11 +12,13 @@ import type {
   IMediaItem
 } from '../models/types.ts';
 
-/*
-|--------------------------------------------------------------------------
-| MongoDB Schemas
-|--------------------------------------------------------------------------
-*/
+/* ---------- helper: immutable / auto fields hata do ---------- */
+function clean<T extends Record<string, any>>(updates: T): Partial<T> {
+  const { _id, __v, createdAt, updatedAt, ...rest } = (updates || {}) as any;
+  return rest;
+}
+
+/* ---------- Schemas ---------- */
 
 const profileSchema = new Schema(
   {
@@ -36,10 +38,7 @@ const profileSchema = new Schema(
     linkedinUrl: { type: String, default: '' },
     skillsHighlight: { type: [String], default: [] }
   },
-  {
-    timestamps: true,
-    versionKey: false
-  }
+  { timestamps: true, versionKey: false }
 );
 
 const educationSchema = new Schema(
@@ -52,13 +51,11 @@ const educationSchema = new Schema(
     endYear: { type: String, default: '' },
     description: { type: String, default: '' },
     location: { type: String, default: '' },
+    image: { type: String, default: '' },
     achievements: { type: [String], default: [] },
     order: { type: Number, default: 1 }
   },
-  {
-    timestamps: false,
-    versionKey: false
-  }
+  { timestamps: false, versionKey: false }
 );
 
 const skillSchema = new Schema(
@@ -74,10 +71,7 @@ const skillSchema = new Schema(
     },
     order: { type: Number, default: 1 }
   },
-  {
-    timestamps: false,
-    versionKey: false
-  }
+  { timestamps: false, versionKey: false }
 );
 
 const projectSchema = new Schema(
@@ -99,10 +93,7 @@ const projectSchema = new Schema(
     order: { type: Number, default: 1 },
     createdAt: { type: String, default: () => new Date().toISOString() }
   },
-  {
-    timestamps: false,
-    versionKey: false
-  }
+  { timestamps: false, versionKey: false }
 );
 
 const thumbnailSchema = new Schema(
@@ -119,10 +110,7 @@ const thumbnailSchema = new Schema(
     published: { type: Boolean, default: true },
     order: { type: Number, default: 1 }
   },
-  {
-    timestamps: false,
-    versionKey: false
-  }
+  { timestamps: false, versionKey: false }
 );
 
 const messageSchema = new Schema(
@@ -132,15 +120,9 @@ const messageSchema = new Schema(
     email: { type: String, required: true },
     message: { type: String, required: true },
     read: { type: Boolean, default: false },
-    createdAt: {
-      type: String,
-      default: () => new Date().toISOString()
-    }
+    createdAt: { type: String, default: () => new Date().toISOString() }
   },
-  {
-    timestamps: false,
-    versionKey: false
-  }
+  { timestamps: false, versionKey: false }
 );
 
 const siteSettingsSchema = new Schema(
@@ -158,10 +140,7 @@ const siteSettingsSchema = new Schema(
     youtubeUrl: { type: String, default: '' },
     footerText: { type: String, default: '' }
   },
-  {
-    timestamps: true,
-    versionKey: false
-  }
+  { timestamps: true, versionKey: false }
 );
 
 const threeSettingsSchema = new Schema(
@@ -176,10 +155,7 @@ const threeSettingsSchema = new Schema(
     reducedMotionFallback: { type: Boolean, default: true },
     accentColor: { type: String, default: 'cyan' }
   },
-  {
-    timestamps: true,
-    versionKey: false
-  }
+  { timestamps: true, versionKey: false }
 );
 
 const mediaSchema = new Schema(
@@ -188,22 +164,12 @@ const mediaSchema = new Schema(
     name: { type: String, required: true },
     url: { type: String, required: true },
     size: { type: Number, default: 0 },
-    createdAt: {
-      type: String,
-      default: () => new Date().toISOString()
-    }
+    createdAt: { type: String, default: () => new Date().toISOString() }
   },
-  {
-    timestamps: false,
-    versionKey: false
-  }
+  { timestamps: false, versionKey: false }
 );
 
-/*
-|--------------------------------------------------------------------------
-| Models
-|--------------------------------------------------------------------------
-*/
+/* ---------- Models ---------- */
 
 const Profile =
   (mongoose.models.Profile as Model<IProfile>) ||
@@ -231,27 +197,17 @@ const Message =
 
 const SiteSettings =
   (mongoose.models.SiteSettings as Model<ISiteSettings>) ||
-  mongoose.model<ISiteSettings>(
-    'SiteSettings',
-    siteSettingsSchema
-  );
+  mongoose.model<ISiteSettings>('SiteSettings', siteSettingsSchema);
 
 const ThreeSettings =
   (mongoose.models.ThreeSettings as Model<IThreeSettings>) ||
-  mongoose.model<IThreeSettings>(
-    'ThreeSettings',
-    threeSettingsSchema
-  );
+  mongoose.model<IThreeSettings>('ThreeSettings', threeSettingsSchema);
 
 const Media =
   (mongoose.models.Media as Model<IMediaItem>) ||
   mongoose.model<IMediaItem>('Media', mediaSchema);
 
-/*
-|--------------------------------------------------------------------------
-| Default Data
-|--------------------------------------------------------------------------
-*/
+/* ---------- Default Data ---------- */
 
 const defaultProfile: IProfile = {
   name: 'NIKIT KUMAR GUPTA',
@@ -277,14 +233,6 @@ const defaultProfile: IProfile = {
     'Thumbnail Design'
   ]
 };
-
-const defaultEducation: IEducation[] = [];
-
-const defaultSkills: ISkill[] = [];
-
-const defaultProjects: IProject[] = [];
-
-const defaultThumbnails: IThumbnail[] = [];
 
 const defaultSiteSettings: ISiteSettings = {
   siteTitle: 'NIKIT KUMAR • Full Stack Developer & Thumbnail Designer',
@@ -313,11 +261,7 @@ const defaultThreeSettings: IThreeSettings = {
   accentColor: 'cyan'
 };
 
-/*
-|--------------------------------------------------------------------------
-| Database Service
-|--------------------------------------------------------------------------
-*/
+/* ---------- Database Service ---------- */
 
 class DatabaseService {
   private isMongoConnected = false;
@@ -342,15 +286,12 @@ class DatabaseService {
       }
 
       this.isMongoConnected = true;
-
       console.log('✅ Successfully connected to MongoDB Atlas');
 
       await this.seedDefaults();
     } catch (error) {
       this.isMongoConnected = false;
-
       console.error('❌ MongoDB connection failed:', error);
-
       throw error;
     }
   }
@@ -358,126 +299,55 @@ class DatabaseService {
   getDbStatus() {
     return {
       connectedToMongo: this.isMongoConnected,
-      storageType: this.isMongoConnected
-        ? 'MongoDB Atlas'
-        : 'Unavailable',
+      storageType: this.isMongoConnected ? 'MongoDB Atlas' : 'Unavailable',
       hint: this.isMongoConnected
         ? 'Connected and active'
         : 'MongoDB connection is unavailable'
     };
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Seed
-  |--------------------------------------------------------------------------
-  */
-
   private async seedDefaults(): Promise<void> {
-    const profileExists = await Profile.exists({});
-
-    if (!profileExists) {
+    if (!(await Profile.exists({}))) {
       await Profile.create(defaultProfile);
       console.log('🌱 Default profile created');
     }
 
-    if ((await Education.countDocuments()) === 0) {
-      const existingEducation = defaultEducation.filter(Boolean);
-
-      if (existingEducation.length > 0) {
-        await Education.insertMany(existingEducation);
-      }
-    }
-
-    if ((await Skill.countDocuments()) === 0) {
-      const existingSkills = defaultSkills.filter(Boolean);
-
-      if (existingSkills.length > 0) {
-        await Skill.insertMany(existingSkills);
-      }
-    }
-
-    if ((await Project.countDocuments()) === 0) {
-      const existingProjects = defaultProjects.filter(Boolean);
-
-      if (existingProjects.length > 0) {
-        await Project.insertMany(existingProjects);
-      }
-    }
-
-    if ((await Thumbnail.countDocuments()) === 0) {
-      const existingThumbnails =
-        defaultThumbnails.filter(Boolean);
-
-      if (existingThumbnails.length > 0) {
-        await Thumbnail.insertMany(existingThumbnails);
-      }
-    }
-
-    const siteExists = await SiteSettings.exists({});
-
-    if (!siteExists) {
+    if (!(await SiteSettings.exists({}))) {
       await SiteSettings.create(defaultSiteSettings);
     }
 
-    const threeExists = await ThreeSettings.exists({});
-
-    if (!threeExists) {
+    if (!(await ThreeSettings.exists({}))) {
       await ThreeSettings.create(defaultThreeSettings);
     }
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Profile
-  |--------------------------------------------------------------------------
-  */
+  /* ----- Profile ----- */
 
   async getProfile(): Promise<IProfile | null> {
     const profile = await Profile.findOne().lean();
     return profile as IProfile | null;
   }
 
-  async updateProfile(
-    updates: Partial<IProfile>
-  ): Promise<IProfile | null> {
+  async updateProfile(updates: Partial<IProfile>): Promise<IProfile | null> {
     const profile = await Profile.findOneAndUpdate(
       {},
-      { $set: updates },
-      {
-        new: true,
-        upsert: true,
-        setDefaultsOnInsert: true
-      }
+      { $set: clean(updates) },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
     ).lean();
 
     return profile as IProfile;
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Education
-  |--------------------------------------------------------------------------
-  */
+  /* ----- Education ----- */
 
   async getEducation(): Promise<IEducation[]> {
-    const items = await Education.find()
-      .sort({ order: 1 })
-      .lean();
-
+    const items = await Education.find().sort({ order: 1 }).lean();
     return items as IEducation[];
   }
 
-  async addEducation(
-    item: Omit<IEducation, '_id'>
-  ): Promise<IEducation> {
-    const newItem = {
-      ...item,
-      _id: `edu-${Date.now()}`
-    };
-
+  async addEducation(item: Omit<IEducation, '_id'>): Promise<IEducation> {
+    const newItem = { ...item, _id: `edu-${Date.now()}` };
     await Education.create(newItem);
-
     return newItem as IEducation;
   }
 
@@ -487,7 +357,7 @@ class DatabaseService {
   ): Promise<IEducation | null> {
     const updated = await Education.findByIdAndUpdate(
       id,
-      { $set: updates },
+      { $set: clean(updates) },
       { new: true }
     ).lean();
 
@@ -499,43 +369,24 @@ class DatabaseService {
     return result.deletedCount === 1;
   }
 
-  async reorderEducation(
-    orderedIds: string[]
-  ): Promise<void> {
+  async reorderEducation(orderedIds: string[]): Promise<void> {
     await Promise.all(
       orderedIds.map((id, index) =>
-        Education.updateOne(
-          { _id: id },
-          { $set: { order: index + 1 } }
-        )
+        Education.updateOne({ _id: id }, { $set: { order: index + 1 } })
       )
     );
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Skills
-  |--------------------------------------------------------------------------
-  */
+  /* ----- Skills ----- */
 
   async getSkills(): Promise<ISkill[]> {
-    const skills = await Skill.find()
-      .sort({ order: 1 })
-      .lean();
-
+    const skills = await Skill.find().sort({ order: 1 }).lean();
     return skills as ISkill[];
   }
 
-  async addSkill(
-    item: Omit<ISkill, '_id'>
-  ): Promise<ISkill> {
-    const newItem = {
-      ...item,
-      _id: `sk-${Date.now()}`
-    };
-
+  async addSkill(item: Omit<ISkill, '_id'>): Promise<ISkill> {
+    const newItem = { ...item, _id: `sk-${Date.now()}` };
     await Skill.create(newItem);
-
     return newItem as ISkill;
   }
 
@@ -545,7 +396,7 @@ class DatabaseService {
   ): Promise<ISkill | null> {
     const updated = await Skill.findByIdAndUpdate(
       id,
-      { $set: updates },
+      { $set: clean(updates) },
       { new: true }
     ).lean();
 
@@ -557,33 +408,18 @@ class DatabaseService {
     return result.deletedCount === 1;
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Projects
-  |--------------------------------------------------------------------------
-  */
+  /* ----- Projects ----- */
 
-  async getProjects(
-    publishedOnly = false
-  ): Promise<IProject[]> {
-    const filter = publishedOnly
-      ? { published: true }
-      : {};
-
-    const projects = await Project.find(filter)
-      .sort({ order: 1 })
-      .lean();
-
+  // publishedOnly = true  -> sirf published (public site)
+  // publishedOnly = false -> sab projects (admin)
+  async getProjects(publishedOnly = false): Promise<IProject[]> {
+    const filter = publishedOnly ? { published: true } : {};
+    const projects = await Project.find(filter).sort({ order: 1 }).lean();
     return projects as IProject[];
   }
 
-  async getProjectBySlug(
-    slug: string
-  ): Promise<IProject | null> {
-    const project = await Project.findOne({
-      slug: slug.toLowerCase()
-    }).lean();
-
+  async getProjectBySlug(slug: string): Promise<IProject | null> {
+    const project = await Project.findOne({ slug: slug.toLowerCase() }).lean();
     return project as IProject | null;
   }
 
@@ -597,7 +433,6 @@ class DatabaseService {
     };
 
     await Project.create(newProject);
-
     return newProject as IProject;
   }
 
@@ -607,7 +442,7 @@ class DatabaseService {
   ): Promise<IProject | null> {
     const updated = await Project.findByIdAndUpdate(
       id,
-      { $set: updates },
+      { $set: clean(updates) },
       { new: true }
     ).lean();
 
@@ -619,36 +454,17 @@ class DatabaseService {
     return result.deletedCount === 1;
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Thumbnails
-  |--------------------------------------------------------------------------
-  */
+  /* ----- Thumbnails ----- */
 
-  async getThumbnails(
-    publishedOnly = false
-  ): Promise<IThumbnail[]> {
-    const filter = publishedOnly
-      ? { published: true }
-      : {};
-
-    const thumbnails = await Thumbnail.find(filter)
-      .sort({ order: 1 })
-      .lean();
-
+  async getThumbnails(publishedOnly = false): Promise<IThumbnail[]> {
+    const filter = publishedOnly ? { published: true } : {};
+    const thumbnails = await Thumbnail.find(filter).sort({ order: 1 }).lean();
     return thumbnails as IThumbnail[];
   }
 
-  async addThumbnail(
-    thumbnail: Omit<IThumbnail, '_id'>
-  ): Promise<IThumbnail> {
-    const newThumbnail = {
-      ...thumbnail,
-      _id: `thumb-${Date.now()}`
-    };
-
+  async addThumbnail(thumbnail: Omit<IThumbnail, '_id'>): Promise<IThumbnail> {
+    const newThumbnail = { ...thumbnail, _id: `thumb-${Date.now()}` };
     await Thumbnail.create(newThumbnail);
-
     return newThumbnail as IThumbnail;
   }
 
@@ -658,7 +474,7 @@ class DatabaseService {
   ): Promise<IThumbnail | null> {
     const updated = await Thumbnail.findByIdAndUpdate(
       id,
-      { $set: updates },
+      { $set: clean(updates) },
       { new: true }
     ).lean();
 
@@ -666,24 +482,14 @@ class DatabaseService {
   }
 
   async deleteThumbnail(id: string): Promise<boolean> {
-    const result = await Thumbnail.deleteOne({
-      _id: id
-    });
-
+    const result = await Thumbnail.deleteOne({ _id: id });
     return result.deletedCount === 1;
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Messages
-  |--------------------------------------------------------------------------
-  */
+  /* ----- Messages ----- */
 
   async getMessages(): Promise<IMessage[]> {
-    const messages = await Message.find()
-      .sort({ createdAt: -1 })
-      .lean();
-
+    const messages = await Message.find().sort({ createdAt: -1 }).lean();
     return messages as IMessage[];
   }
 
@@ -702,100 +508,61 @@ class DatabaseService {
     };
 
     await Message.create(newMessage);
-
     return newMessage as IMessage;
   }
 
-  async markMessageRead(
-    id: string,
-    read = true
-  ): Promise<boolean> {
-    const result = await Message.updateOne(
-      { _id: id },
-      { $set: { read } }
-    );
-
+  async markMessageRead(id: string, read = true): Promise<boolean> {
+    const result = await Message.updateOne({ _id: id }, { $set: { read } });
     return result.matchedCount === 1;
   }
 
   async deleteMessage(id: string): Promise<boolean> {
-    const result = await Message.deleteOne({
-      _id: id
-    });
-
+    const result = await Message.deleteOne({ _id: id });
     return result.deletedCount === 1;
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Site Settings
-  |--------------------------------------------------------------------------
-  */
+  /* ----- Site Settings ----- */
 
   async getSiteSettings(): Promise<ISiteSettings | null> {
     const settings = await SiteSettings.findOne().lean();
-
     return settings as ISiteSettings | null;
   }
 
   async updateSiteSettings(
     updates: Partial<ISiteSettings>
   ): Promise<ISiteSettings | null> {
-    const settings =
-      await SiteSettings.findOneAndUpdate(
-        {},
-        { $set: updates },
-        {
-          new: true,
-          upsert: true,
-          setDefaultsOnInsert: true
-        }
-      ).lean();
+    const settings = await SiteSettings.findOneAndUpdate(
+      {},
+      { $set: clean(updates) },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).lean();
 
     return settings as ISiteSettings;
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | 3D Settings
-  |--------------------------------------------------------------------------
-  */
+  /* ----- 3D Settings ----- */
 
   async getThreeSettings(): Promise<IThreeSettings | null> {
-    const settings =
-      await ThreeSettings.findOne().lean();
-
+    const settings = await ThreeSettings.findOne().lean();
     return settings as IThreeSettings | null;
   }
 
   async updateThreeSettings(
     updates: Partial<IThreeSettings>
   ): Promise<IThreeSettings | null> {
-    const settings =
-      await ThreeSettings.findOneAndUpdate(
-        {},
-        { $set: updates },
-        {
-          new: true,
-          upsert: true,
-          setDefaultsOnInsert: true
-        }
-      ).lean();
+    const settings = await ThreeSettings.findOneAndUpdate(
+      {},
+      { $set: clean(updates) },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).lean();
 
     return settings as IThreeSettings;
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Media
-  |--------------------------------------------------------------------------
-  */
+  /* ----- Media ----- */
 
   async getMedia(): Promise<IMediaItem[]> {
-    const media = await Media.find()
-      .sort({ createdAt: -1 })
-      .lean();
-
+    const media = await Media.find().sort({ createdAt: -1 }).lean();
     return media as IMediaItem[];
   }
 
@@ -809,15 +576,11 @@ class DatabaseService {
     };
 
     await Media.create(newMedia);
-
     return newMedia as IMediaItem;
   }
 
   async deleteMedia(id: string): Promise<boolean> {
-    const result = await Media.deleteOne({
-      _id: id
-    });
-
+    const result = await Media.deleteOne({ _id: id });
     return result.deletedCount === 1;
   }
 }
