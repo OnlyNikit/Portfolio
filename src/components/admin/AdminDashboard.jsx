@@ -49,6 +49,17 @@ const PROFILE_FIELDS = [
   ["skillsHighlight", "Card Skills Highlight (Comma separated)"]
 ];
 
+// Project category dropdown ke ready-made options
+const PROJECT_CATEGORIES = [
+  "Full Stack",
+  "Frontend",
+  "Backend",
+  "AI/ML",
+  "Mobile App",
+  "Data Science",
+  "Automation"
+];
+
 // Upload se pehle image chhoti kar deta hai (max 1920px) taaki upload fail na ho
 function compressImage(file, maxSize = 1920, quality = 0.85) {
   return new Promise((resolve, reject) => {
@@ -340,18 +351,19 @@ export function AdminDashboard({ onBackToSite }) {
       return false;
     }
   };
-const handleImageUpload = async (file, callback) => {
-  try {
-    showFeedback("Uploading...");
-    const { data, type } = await compressImage(file);
-    const res = await api.uploadMedia(file.name, data, type);
-    callback(res.item.url);
-    loadMedia();
-    showFeedback("Image uploaded and applied!");
-  } catch (err) {
-    showFeedback(err?.message || "Image upload failed", true);
-  }
-};
+
+  const handleImageUpload = async (file, callback) => {
+    try {
+      showFeedback("Uploading...");
+      const { data, type } = await compressImage(file);
+      const res = await api.uploadMedia(file.name, data, type);
+      callback(res.item.url);
+      loadMedia();
+      showFeedback("Image uploaded and applied!");
+    } catch (err) {
+      showFeedback(err?.message || "Image upload failed", true);
+    }
+  };
 
   const handleSaveProfile = async () => {
     try {
@@ -432,6 +444,10 @@ const handleImageUpload = async (file, callback) => {
   ];
 
   const currentTab = tabs.find((t) => t.id === activeTab);
+
+  // Category preset list mein nahi hai (ya "Other" select hua hai) to custom input dikhao
+  const isCustomCategory =
+    !!editingProject && !PROJECT_CATEGORIES.includes(editingProject.category);
 
   // ---------- layout classes ----------
 
@@ -1217,6 +1233,41 @@ const handleImageUpload = async (file, callback) => {
                       </div>
                     </div>
 
+                    {/* Category: dropdown + custom option */}
+                    <div className="space-y-1.5">
+                      <label className={lbl}>Category</label>
+                      <select
+                        value={isCustomCategory ? "__other__" : editingProject.category}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setEditingProject({
+                            ...editingProject,
+                            category: v === "__other__" ? " " : v
+                          });
+                        }}
+                        className={sel}
+                      >
+                        {PROJECT_CATEGORIES.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                        <option value="__other__">Other (custom)</option>
+                      </select>
+
+                      {isCustomCategory && (
+                        <input
+                          type="text"
+                          placeholder="Custom category (e.g. Web3, Game Dev)"
+                          value={editingProject.category || ""}
+                          onChange={(e) =>
+                            setEditingProject({ ...editingProject, category: e.target.value })
+                          }
+                          className={inp}
+                        />
+                      )}
+                    </div>
+
                     <input
                       type="text"
                       placeholder="Tech Stack (Comma-separated: React, Python, MongoDB)"
@@ -1287,12 +1338,19 @@ const handleImageUpload = async (file, callback) => {
                     </button>
                     <button
                       onClick={async () => {
-                        const p = editingProject;
+                        const p = {
+                          ...editingProject,
+                          category: (editingProject.category || "").trim()
+                        };
                         if (!p.name?.trim() || !p.shortDescription?.trim() || !p.coverImage?.trim()) {
                           showFeedback(
                             "Project name, short description aur cover image zaroori hain",
                             true
                           );
+                          return;
+                        }
+                        if (!p.category) {
+                          showFeedback("Category select ya likhna zaroori hai", true);
                           return;
                         }
                         const ok = await runAction(async () => {

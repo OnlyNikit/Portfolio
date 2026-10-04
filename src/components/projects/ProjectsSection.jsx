@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ExternalLink, Github, Layers, X, Sparkles } from 'lucide-react';
 import { usePortfolio } from '../../context/PortfolioContext.jsx';
@@ -12,9 +13,42 @@ export function ProjectsSection() {
   const [selectedProjectIndex, setSelectedProjectIndex] = useState(0);
   const [caseStudyProject, setCaseStudyProject] = useState(null);
 
-  const activeProject = projects[selectedProjectIndex] || projects[0];
+  const activeProject = projects?.[selectedProjectIndex] || projects?.[0];
 
-  if (!projects || projects.length === 0) {
+  // Modal khula ho to piche ka page scroll lock + Esc se band
+  useEffect(() => {
+    if (!caseStudyProject) return;
+
+    const body = document.body;
+    const html = document.documentElement;
+
+    const prevBodyOverflow = body.style.overflow;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevPaddingRight = body.style.paddingRight;
+
+    // Scrollbar gayab hone par layout jump na ho
+    const scrollbarWidth = window.innerWidth - html.clientWidth;
+    if (scrollbarWidth > 0) {
+      body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    body.style.overflow = 'hidden';
+    html.style.overflow = 'hidden';
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') setCaseStudyProject(null);
+    };
+    window.addEventListener('keydown', onKey);
+
+    return () => {
+      body.style.overflow = prevBodyOverflow;
+      html.style.overflow = prevHtmlOverflow;
+      body.style.paddingRight = prevPaddingRight;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [caseStudyProject]);
+
+  if (!projects || projects.length === 0 || !activeProject) {
     return null;
   }
 
@@ -167,7 +201,7 @@ export function ProjectsSection() {
                       {language === 'hi' ? 'टेक्नोलॉजी स्टैक' : 'TECHNOLOGY STACK'}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                      {activeProject.techStack.map((tech, tIdx) => (
+                      {(activeProject.techStack || []).map((tech, tIdx) => (
                         <span
                           key={tIdx}
                           className="px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs font-mono text-slate-300"
@@ -220,16 +254,30 @@ export function ProjectsSection() {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Case Study Modal Overlay */}
+      {/* Case Study Modal: document.body mein portal, taaki koi section uske upar na aaye */}
+      {createPortal(
         <AnimatePresence>
           {caseStudyProject && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-md">
+            <motion.div
+              key="case-study-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-md overscroll-contain"
+              onClick={() => setCaseStudyProject(null)}
+              role="dialog"
+              aria-modal="true"
+            >
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="relative w-full max-w-4xl max-h-[90vh] rounded-3xl bg-[#090c18] border border-white/[0.1] shadow-2xl overflow-y-auto text-white p-6 sm:p-10 space-y-6 box-glow"
+                onClick={(e) => e.stopPropagation()}
+                data-lenis-prevent
+                className="relative w-full max-w-4xl max-h-[90vh] rounded-3xl bg-[#090c18] border border-white/[0.1] shadow-2xl overflow-y-auto overscroll-contain text-white p-6 sm:p-10 space-y-6 box-glow"
               >
                 <div className="flex items-start justify-between border-b border-white/[0.08] pb-5">
                   <div className="space-y-1">
@@ -245,7 +293,8 @@ export function ProjectsSection() {
                   </div>
                   <button
                     onClick={() => setCaseStudyProject(null)}
-                    className="p-2 rounded-xl bg-white/[0.05] text-slate-400 hover:text-white hover:bg-white/[0.1] transition-colors"
+                    aria-label="Close"
+                    className="p-2 rounded-xl bg-white/[0.05] text-slate-400 hover:text-white hover:bg-white/[0.1] transition-colors cursor-pointer"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -263,7 +312,7 @@ export function ProjectsSection() {
                   <h4 className="text-lg font-bold text-white font-heading">
                     {language === 'hi' ? 'प्रोजेक्ट अवलोकन व आर्किटेक्चर' : 'Architecture & Overview'}
                   </h4>
-                  <p className="text-slate-300 text-sm leading-relaxed">
+                  <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">
                     {caseStudyProject.longDescription || caseStudyProject.shortDescription}
                   </p>
                 </div>
@@ -271,7 +320,7 @@ export function ProjectsSection() {
                 <div className="pt-4 border-t border-white/[0.08] flex items-center justify-end gap-3">
                   <button
                     onClick={() => setCaseStudyProject(null)}
-                    className="px-5 py-2.5 rounded-xl bg-white/[0.05] text-slate-300 hover:text-white text-xs font-semibold"
+                    className="px-5 py-2.5 rounded-xl bg-white/[0.05] text-slate-300 hover:text-white text-xs font-semibold cursor-pointer"
                   >
                     {language === 'hi' ? 'बंद करें' : 'Close'}
                   </button>
@@ -291,10 +340,11 @@ export function ProjectsSection() {
                   )}
                 </div>
               </motion.div>
-            </div>
+            </motion.div>
           )}
-        </AnimatePresence>
-      </div>
+        </AnimatePresence>,
+        document.body
+      )}
     </section>
   );
 }
