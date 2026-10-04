@@ -18,7 +18,9 @@ import {
   Upload,
   Copy,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Menu,
+  X
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { usePortfolio } from "../../context/PortfolioContext.jsx";
@@ -47,6 +49,38 @@ const PROFILE_FIELDS = [
   ["skillsHighlight", "Card Skills Highlight (Comma separated)"]
 ];
 
+// 755px ya usse chhoti screen = mobile
+const MOBILE_QUERY = "(max-width: 755px)";
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(MOBILE_QUERY).matches
+  );
+
+  useEffect(() => {
+    const mql = window.matchMedia(MOBILE_QUERY);
+    const handler = (e) => setIsMobile(e.matches);
+
+    setIsMobile(mql.matches);
+
+    if (mql.addEventListener) {
+      mql.addEventListener("change", handler);
+    } else {
+      mql.addListener(handler);
+    }
+
+    return () => {
+      if (mql.removeEventListener) {
+        mql.removeEventListener("change", handler);
+      } else {
+        mql.removeListener(handler);
+      }
+    };
+  }, []);
+
+  return isMobile;
+}
+
 export function AdminDashboard({ onBackToSite }) {
   const { logout } = useAuth();
   const {
@@ -59,6 +93,9 @@ export function AdminDashboard({ onBackToSite }) {
     updateSiteSettingsState,
     updateThreeSettingsState
   } = usePortfolio();
+
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState("overview");
   const [messages, setMessages] = useState([]);
@@ -113,6 +150,37 @@ export function AdminDashboard({ onBackToSite }) {
   const [editingSkill, setEditingSkill] = useState(null);
   const [editingProject, setEditingProject] = useState(null);
   const [editingThumbnail, setEditingThumbnail] = useState(null);
+
+  // ---------- sidebar (mobile drawer) behaviour ----------
+
+  // Desktop pe aate hi drawer band
+  useEffect(() => {
+    if (!isMobile) setSidebarOpen(false);
+  }, [isMobile]);
+
+  // Drawer khula ho to piche ka scroll lock + Esc se band
+  useEffect(() => {
+    if (!(isMobile && sidebarOpen)) return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKey = (e) => {
+      if (e.key === "Escape") setSidebarOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [isMobile, sidebarOpen]);
+
+  const selectTab = (id) => {
+    setActiveTab(id);
+    setSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  };
 
   // ---------- data loaders ----------
 
@@ -275,6 +343,30 @@ export function AdminDashboard({ onBackToSite }) {
     }
   };
 
+  const handleSaveEducation = async () => {
+    const e = editingEducation;
+
+    if (
+      !e.institution?.trim() ||
+      !e.level?.trim() ||
+      !e.startYear?.trim() ||
+      !e.endYear?.trim()
+    ) {
+      showFeedback("Institution, Level, Start Year aur End Year bharna zaroori hai", true);
+      return;
+    }
+
+    const ok = await runAction(async () => {
+      if (e._id) {
+        await api.updateEducation(e._id, e);
+      } else {
+        await api.addEducation(e);
+      }
+    }, "Education saved!");
+
+    if (ok) setEditingEducation(null);
+  };
+
   const tabs = [
     { id: "overview", label: "Dashboard", icon: LayoutDashboard },
     { id: "profile", label: "Profile", icon: User },
@@ -292,24 +384,95 @@ export function AdminDashboard({ onBackToSite }) {
     { id: "settings", label: "Site Settings", icon: Settings }
   ];
 
+  const currentTab = tabs.find((t) => t.id === activeTab);
+
+  // ---------- layout classes ----------
+
+  const asideClass = isMobile
+    ? `fixed top-0 left-0 z-50 h-full w-72 max-w-[85vw] bg-[#080c18] border-r border-white/[0.08] flex flex-col transition-transform duration-300 ease-in-out ${
+        sidebarOpen ? "translate-x-0 shadow-2xl shadow-black/60" : "-translate-x-full"
+      }`
+    : "w-64 sticky top-0 h-screen bg-[#080c18] border-r border-white/[0.08] flex flex-col shrink-0";
+
+  const mainClass = isMobile
+    ? "flex-1 min-w-0 p-4 pt-20 overflow-y-auto"
+    : "flex-1 min-w-0 p-6 md:p-10 overflow-y-auto";
+
   return (
-    <div className="min-h-screen bg-[#060810] text-slate-100 flex flex-col md:flex-row">
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-[#080c18] border-r border-white/[0.08] flex flex-col shrink-0">
-        <div className="p-5 border-b border-white/[0.08] flex items-center justify-between">
+    <div
+      className={`min-h-screen bg-[#060810] text-slate-100 flex ${
+        isMobile ? "flex-col" : "flex-row"
+      }`}
+    >
+      {/* ---------- Mobile top bar ---------- */}
+      {isMobile && (
+        <header className="fixed top-0 inset-x-0 z-40 h-14 px-3 flex items-center justify-between gap-3 bg-[#080c18]/95 backdrop-blur-md border-b border-white/[0.08]">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open menu"
+            className="p-2 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-white"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          <div className="min-w-0 flex-1 text-center">
+            <div className="text-[10px] font-mono text-cyan-400 tracking-wider uppercase leading-none">
+              Admin Console
+            </div>
+            <div className="text-sm font-bold text-white truncate mt-0.5">
+              {currentTab?.label}
+            </div>
+          </div>
+
+          <button
+            onClick={onBackToSite}
+            aria-label="View live site"
+            className="p-2 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white"
+            title="View Live Site"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        </header>
+      )}
+
+      {/* ---------- Mobile overlay ---------- */}
+      {isMobile && sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ---------- Sidebar (desktop: fixed, mobile: drawer) ---------- */}
+      <aside className={asideClass}>
+        <div className="p-5 border-b border-white/[0.08] flex items-center justify-between gap-2">
           <div>
             <div className="text-xs font-mono text-cyan-400 font-semibold tracking-wider uppercase">
               PORTFOLIO CMS
             </div>
             <div className="text-base font-bold text-white tracking-tight">Admin Console</div>
           </div>
-          <button
-            onClick={onBackToSite}
-            className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white"
-            title="View Live Site"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onBackToSite}
+              className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white"
+              title="View Live Site"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+
+            {isMobile && (
+              <button
+                onClick={() => setSidebarOpen(false)}
+                aria-label="Close menu"
+                className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         <nav className="p-3 space-y-1 flex-1 overflow-y-auto">
@@ -319,15 +482,17 @@ export function AdminDashboard({ onBackToSite }) {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                onClick={() => selectTab(tab.id)}
+                className={`w-full flex items-center gap-3 px-3.5 ${
+                  isMobile ? "py-3" : "py-2.5"
+                } rounded-xl text-xs font-medium transition-colors cursor-pointer ${
                   isActive
                     ? "bg-cyan-500/15 text-cyan-300 font-semibold border border-cyan-500/30"
                     : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                <span>{tab.label}</span>
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className="truncate">{tab.label}</span>
               </button>
             );
           })}
@@ -344,17 +509,17 @@ export function AdminDashboard({ onBackToSite }) {
         </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 p-6 md:p-10 overflow-y-auto">
+      {/* ---------- Main ---------- */}
+      <main className={mainClass}>
         {saveStatus && (
-          <div className="fixed top-6 right-6 z-[60] p-4 rounded-xl bg-emerald-950/90 border border-emerald-500/50 text-emerald-300 text-xs flex items-center gap-2.5 shadow-2xl backdrop-blur-md">
-            <CheckCircle className="w-4 h-4 text-emerald-400" />
+          <div className="fixed top-16 md:top-6 right-4 md:right-6 left-4 md:left-auto z-[60] p-4 rounded-xl bg-emerald-950/90 border border-emerald-500/50 text-emerald-300 text-xs flex items-center gap-2.5 shadow-2xl backdrop-blur-md">
+            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>{saveStatus}</span>
           </div>
         )}
         {errorStatus && (
-          <div className="fixed top-6 right-6 z-[60] p-4 rounded-xl bg-rose-950/90 border border-rose-500/50 text-rose-300 text-xs flex items-center gap-2.5 shadow-2xl backdrop-blur-md">
-            <AlertCircle className="w-4 h-4 text-rose-400" />
+          <div className="fixed top-16 md:top-6 right-4 md:right-6 left-4 md:left-auto z-[60] p-4 rounded-xl bg-rose-950/90 border border-rose-500/50 text-rose-300 text-xs flex items-center gap-2.5 shadow-2xl backdrop-blur-md">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
             <span>{errorStatus}</span>
           </div>
         )}
@@ -428,19 +593,19 @@ export function AdminDashboard({ onBackToSite }) {
               </h3>
               <div className="flex flex-wrap gap-3">
                 <button
-                  onClick={() => setActiveTab("projects")}
+                  onClick={() => selectTab("projects")}
                   className="px-4 py-2.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold"
                 >
                   + Add New Project
                 </button>
                 <button
-                  onClick={() => setActiveTab("thumbnails")}
+                  onClick={() => selectTab("thumbnails")}
                   className="px-4 py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-semibold"
                 >
                   + Upload Thumbnail
                 </button>
                 <button
-                  onClick={() => setActiveTab("profile")}
+                  onClick={() => selectTab("profile")}
                   className="px-4 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-white border border-white/[0.08] text-xs font-semibold"
                 >
                   Update Profile Info
@@ -460,8 +625,8 @@ export function AdminDashboard({ onBackToSite }) {
               </p>
             </div>
 
-            <div className="p-6 rounded-2xl bg-[#0a0e1b] border border-white/[0.08] space-y-6">
-              <div className="flex items-center gap-6">
+            <div className="p-4 sm:p-6 rounded-2xl bg-[#0a0e1b] border border-white/[0.08] space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
                 <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-900 border border-cyan-500/40 shrink-0">
                   {profileForm.photo && (
                     <img
@@ -474,7 +639,7 @@ export function AdminDashboard({ onBackToSite }) {
                     />
                   )}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0 flex-1">
                   <label className={lbl}>Profile Photo (3D Card & About)</label>
                   <div className="flex items-center gap-3 flex-wrap">
                     <input
@@ -504,7 +669,7 @@ export function AdminDashboard({ onBackToSite }) {
                       value={profileForm.photo}
                       onChange={(e) => setProfileForm({ ...profileForm, photo: e.target.value })}
                       placeholder="/image-url.jpg"
-                      className="px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-slate-300 w-64"
+                      className="px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-slate-300 w-full sm:w-64"
                     />
                   </div>
                   <p className="text-[11px] text-slate-500">
@@ -569,7 +734,7 @@ export function AdminDashboard({ onBackToSite }) {
         {/* 3. EDUCATION */}
         {activeTab === "education" && (
           <div className="space-y-6 max-w-4xl">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Education & Journey</h1>
                 <p className="text-xs font-mono text-slate-400 mt-1">
@@ -605,16 +770,16 @@ export function AdminDashboard({ onBackToSite }) {
               {education.map((edu) => (
                 <div
                   key={edu._id}
-                  className="p-5 rounded-2xl bg-[#0a0e1b] border border-white/[0.08] flex items-start justify-between gap-4"
+                  className="p-4 sm:p-5 rounded-2xl bg-[#0a0e1b] border border-white/[0.08] flex items-start justify-between gap-4"
                 >
-                  <div className="space-y-1">
+                  <div className="space-y-1 min-w-0">
                     <div className="text-xs font-mono text-cyan-400">
                       {edu.level} ({edu.startYear} - {edu.endYear})
                     </div>
-                    <div className="text-base font-bold text-white">{edu.institution}</div>
+                    <div className="text-base font-bold text-white break-words">{edu.institution}</div>
                     {edu.field && <div className="text-xs text-slate-300">{edu.field}</div>}
                     {edu.description && (
-                      <p className="text-xs text-slate-400 pt-1">{edu.description}</p>
+                      <p className="text-xs text-slate-400 pt-1 break-words">{edu.description}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -639,7 +804,7 @@ export function AdminDashboard({ onBackToSite }) {
 
             {editingEducation && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-                <div className="w-full max-w-lg p-6 rounded-3xl bg-[#0c101d] border border-cyan-500/30 space-y-4">
+                <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-3xl bg-[#0c101d] border border-cyan-500/30 space-y-4">
                   <h3 className="text-lg font-bold text-white">
                     {editingEducation._id ? "Edit Education Entry" : "Add Education Entry"}
                   </h3>
@@ -709,16 +874,7 @@ export function AdminDashboard({ onBackToSite }) {
                       Cancel
                     </button>
                     <button
-                      onClick={async () => {
-                        const ok = await runAction(async () => {
-                          if (editingEducation._id) {
-                            await api.updateEducation(editingEducation._id, editingEducation);
-                          } else {
-                            await api.addEducation(editingEducation);
-                          }
-                        }, "Education saved!");
-                        if (ok) setEditingEducation(null);
-                      }}
+                      onClick={handleSaveEducation}
                       className="px-4 py-2 rounded-xl bg-cyan-500 text-xs font-bold text-slate-950"
                     >
                       Save Entry
@@ -733,7 +889,7 @@ export function AdminDashboard({ onBackToSite }) {
         {/* 4. SKILLS */}
         {activeTab === "skills" && (
           <div className="space-y-6 max-w-4xl">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Skills Manager</h1>
                 <p className="text-xs font-mono text-slate-400 mt-1">
@@ -760,15 +916,15 @@ export function AdminDashboard({ onBackToSite }) {
               {skills.map((sk) => (
                 <div
                   key={sk._id}
-                  className="p-3.5 rounded-xl bg-[#0a0e1b] border border-white/[0.08] flex items-center justify-between"
+                  className="p-3.5 rounded-xl bg-[#0a0e1b] border border-white/[0.08] flex items-center justify-between gap-2"
                 >
-                  <div>
-                    <div className="text-sm font-semibold text-white">{sk.name}</div>
-                    <div className="text-[11px] font-mono text-slate-400">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white truncate">{sk.name}</div>
+                    <div className="text-[11px] font-mono text-slate-400 truncate">
                       {sk.category} · {sk.proficiencyLevel}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => setEditingSkill(sk)}
                       className="p-1.5 rounded-lg bg-white/[0.04] text-slate-400 hover:text-white"
@@ -788,7 +944,7 @@ export function AdminDashboard({ onBackToSite }) {
 
             {editingSkill && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-                <div className="w-full max-w-md p-6 rounded-3xl bg-[#0c101d] border border-cyan-500/30 space-y-4">
+                <div className="w-full max-w-md max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-3xl bg-[#0c101d] border border-cyan-500/30 space-y-4">
                   <h3 className="text-lg font-bold text-white">
                     {editingSkill._id ? "Edit Skill" : "Add New Skill"}
                   </h3>
@@ -838,6 +994,10 @@ export function AdminDashboard({ onBackToSite }) {
                     </button>
                     <button
                       onClick={async () => {
+                        if (!editingSkill.name?.trim()) {
+                          showFeedback("Skill name bharna zaroori hai", true);
+                          return;
+                        }
                         const ok = await runAction(async () => {
                           if (editingSkill._id) {
                             await api.updateSkill(editingSkill._id, editingSkill);
@@ -861,7 +1021,7 @@ export function AdminDashboard({ onBackToSite }) {
         {/* 5. PROJECTS */}
         {activeTab === "projects" && (
           <div className="space-y-6 max-w-5xl">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Project Management</h1>
                 <p className="text-xs font-mono text-slate-400 mt-1">
@@ -896,7 +1056,7 @@ export function AdminDashboard({ onBackToSite }) {
               {adminProjects.map((proj) => (
                 <div
                   key={proj._id}
-                  className="p-5 rounded-2xl bg-[#0a0e1b] border border-white/[0.08] space-y-3"
+                  className="p-4 sm:p-5 rounded-2xl bg-[#0a0e1b] border border-white/[0.08] space-y-3"
                 >
                   <div className="aspect-video rounded-xl overflow-hidden bg-slate-900 border border-white/[0.08]">
                     <img src={proj.coverImage} alt={proj.name} className="w-full h-full object-cover" />
@@ -906,11 +1066,11 @@ export function AdminDashboard({ onBackToSite }) {
                       <span>{proj.category}</span>
                       <span>{proj.published ? "Published" : "Draft"}</span>
                     </div>
-                    <div className="text-lg font-bold text-white mt-1">{proj.name}</div>
+                    <div className="text-lg font-bold text-white mt-1 break-words">{proj.name}</div>
                     <p className="text-xs text-slate-400 line-clamp-2 mt-1">{proj.shortDescription}</p>
                   </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-white/[0.06]">
-                    <div className="flex gap-1">
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/[0.06]">
+                    <div className="flex gap-1 flex-wrap min-w-0">
                       {(proj.techStack || []).slice(0, 3).map((t, idx) => (
                         <span
                           key={idx}
@@ -920,7 +1080,7 @@ export function AdminDashboard({ onBackToSite }) {
                         </span>
                       ))}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => setEditingProject(proj)}
                         className="p-2 rounded-lg bg-white/[0.04] text-slate-300 hover:text-white"
@@ -943,7 +1103,7 @@ export function AdminDashboard({ onBackToSite }) {
 
             {editingProject && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-                <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 sm:p-8 rounded-3xl bg-[#0c101d] border border-cyan-500/30 space-y-4">
+                <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 sm:p-8 rounded-3xl bg-[#0c101d] border border-cyan-500/30 space-y-4">
                   <h3 className="text-xl font-bold text-white">
                     {editingProject._id ? "Edit Project" : "New Project"}
                   </h3>
@@ -983,7 +1143,7 @@ export function AdminDashboard({ onBackToSite }) {
                           onChange={(e) =>
                             setEditingProject({ ...editingProject, coverImage: e.target.value })
                           }
-                          className="flex-1 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-white"
+                          className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-white"
                         />
                         <input
                           type="file"
@@ -1002,7 +1162,7 @@ export function AdminDashboard({ onBackToSite }) {
                         />
                         <label
                           htmlFor="proj-cover-upload"
-                          className="px-3 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-white border border-white/[0.1] cursor-pointer flex items-center gap-1"
+                          className="px-3 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-white border border-white/[0.1] cursor-pointer flex items-center gap-1 shrink-0"
                         >
                           <Upload className="w-3.5 h-3.5" />
                           <span>Upload</span>
@@ -1025,7 +1185,7 @@ export function AdminDashboard({ onBackToSite }) {
                       }
                       className={inp}
                     />
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <input
                         type="text"
                         placeholder="GitHub URL"
@@ -1080,11 +1240,19 @@ export function AdminDashboard({ onBackToSite }) {
                     </button>
                     <button
                       onClick={async () => {
+                        const p = editingProject;
+                        if (!p.name?.trim() || !p.shortDescription?.trim() || !p.coverImage?.trim()) {
+                          showFeedback(
+                            "Project name, short description aur cover image zaroori hain",
+                            true
+                          );
+                          return;
+                        }
                         const ok = await runAction(async () => {
-                          if (editingProject._id) {
-                            await api.updateProject(editingProject._id, editingProject);
+                          if (p._id) {
+                            await api.updateProject(p._id, p);
                           } else {
-                            await api.addProject(editingProject);
+                            await api.addProject(p);
                           }
                         }, "Project saved!");
                         if (ok) setEditingProject(null);
@@ -1103,7 +1271,7 @@ export function AdminDashboard({ onBackToSite }) {
         {/* 6. THUMBNAILS */}
         {activeTab === "thumbnails" && (
           <div className="space-y-6 max-w-5xl">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Thumbnail Portfolio</h1>
                 <p className="text-xs font-mono text-slate-400 mt-1">
@@ -1173,7 +1341,7 @@ export function AdminDashboard({ onBackToSite }) {
 
             {editingThumbnail && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-                <div className="w-full max-w-lg p-6 rounded-3xl bg-[#0c101d] border border-cyan-500/30 space-y-4">
+                <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-3xl bg-[#0c101d] border border-cyan-500/30 space-y-4">
                   <h3 className="text-lg font-bold text-white">
                     {editingThumbnail._id ? "Edit Thumbnail" : "Add New Thumbnail"}
                   </h3>
@@ -1215,7 +1383,7 @@ export function AdminDashboard({ onBackToSite }) {
                           onChange={(e) =>
                             setEditingThumbnail({ ...editingThumbnail, image: e.target.value })
                           }
-                          className="flex-1 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-white"
+                          className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-white"
                         />
                         <input
                           type="file"
@@ -1234,7 +1402,7 @@ export function AdminDashboard({ onBackToSite }) {
                         />
                         <label
                           htmlFor="thumb-file-upload"
-                          className="px-3 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-white border border-white/[0.1] cursor-pointer flex items-center gap-1"
+                          className="px-3 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-white border border-white/[0.1] cursor-pointer flex items-center gap-1 shrink-0"
                         >
                           <Upload className="w-3.5 h-3.5" />
                           <span>Upload</span>
@@ -1286,11 +1454,16 @@ export function AdminDashboard({ onBackToSite }) {
                     </button>
                     <button
                       onClick={async () => {
+                        const t = editingThumbnail;
+                        if (!t.title?.trim() || !t.image?.trim()) {
+                          showFeedback("Title aur image zaroori hain", true);
+                          return;
+                        }
                         const ok = await runAction(async () => {
-                          if (editingThumbnail._id) {
-                            await api.updateThumbnail(editingThumbnail._id, editingThumbnail);
+                          if (t._id) {
+                            await api.updateThumbnail(t._id, t);
                           } else {
-                            await api.addThumbnail(editingThumbnail);
+                            await api.addThumbnail(t);
                           }
                         }, "Thumbnail saved!");
                         if (ok) setEditingThumbnail(null);
@@ -1325,24 +1498,28 @@ export function AdminDashboard({ onBackToSite }) {
                 messages.map((msg) => (
                   <div
                     key={msg._id}
-                    className={`p-5 rounded-2xl border transition-all ${
+                    className={`p-4 sm:p-5 rounded-2xl border transition-all ${
                       msg.read
                         ? "bg-[#090c17]/60 border-white/[0.06]"
                         : "bg-[#0d1424] border-cyan-500/40 shadow-lg shadow-cyan-500/5"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-bold text-white">{msg.name}</span>
-                          <span className="text-xs font-mono text-cyan-400">({msg.email})</span>
+                          <span className="text-xs font-mono text-cyan-400 break-all">
+                            ({msg.email})
+                          </span>
                           {!msg.read && (
                             <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-mono">
                               NEW
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-300 mt-2 leading-relaxed">{msg.message}</p>
+                        <p className="text-xs text-slate-300 mt-2 leading-relaxed break-words">
+                          {msg.message}
+                        </p>
                         <div className="text-[10px] font-mono text-slate-500 mt-2">
                           {new Date(msg.createdAt).toLocaleString()}
                         </div>
@@ -1391,7 +1568,7 @@ export function AdminDashboard({ onBackToSite }) {
         {/* 8. MEDIA LIBRARY */}
         {activeTab === "media" && (
           <div className="space-y-6 max-w-5xl">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Media Library</h1>
                 <p className="text-xs font-mono text-slate-400 mt-1">
@@ -1423,7 +1600,7 @@ export function AdminDashboard({ onBackToSite }) {
               </div>
             )}
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
               {mediaList.map((item) => (
                 <div
                   key={item._id}
@@ -1475,8 +1652,8 @@ export function AdminDashboard({ onBackToSite }) {
               </p>
             </div>
 
-            <div className="p-6 rounded-2xl bg-[#0a0e1b] border border-white/[0.08] space-y-6">
-              <div className="flex items-center justify-between pb-4 border-b border-white/[0.06]">
+            <div className="p-4 sm:p-6 rounded-2xl bg-[#0a0e1b] border border-white/[0.08] space-y-6">
+              <div className="flex items-center justify-between gap-4 pb-4 border-b border-white/[0.06]">
                 <div>
                   <div className="text-sm font-semibold text-white">Enable 3D Hero Particles</div>
                   <div className="text-xs text-slate-400">Three.js WebGL canvas background</div>
@@ -1485,7 +1662,7 @@ export function AdminDashboard({ onBackToSite }) {
                   type="checkbox"
                   checked={!!threeForm.hero3dEnabled}
                   onChange={(e) => setThreeForm({ ...threeForm, hero3dEnabled: e.target.checked })}
-                  className="w-5 h-5 accent-cyan-500 rounded"
+                  className="w-5 h-5 accent-cyan-500 rounded shrink-0"
                 />
               </div>
 
@@ -1546,7 +1723,7 @@ export function AdminDashboard({ onBackToSite }) {
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-2">
+              <div className="flex items-center justify-between gap-4 pt-2">
                 <div>
                   <div className="text-sm font-semibold text-white">Custom Cursor Effects</div>
                   <div className="text-xs text-slate-400">
@@ -1557,7 +1734,7 @@ export function AdminDashboard({ onBackToSite }) {
                   type="checkbox"
                   checked={!!threeForm.cursorEffects}
                   onChange={(e) => setThreeForm({ ...threeForm, cursorEffects: e.target.checked })}
-                  className="w-5 h-5 accent-cyan-500 rounded"
+                  className="w-5 h-5 accent-cyan-500 rounded shrink-0"
                 />
               </div>
 
@@ -1578,7 +1755,7 @@ export function AdminDashboard({ onBackToSite }) {
               </p>
             </div>
 
-            <div className="p-6 rounded-2xl bg-[#0a0e1b] border border-white/[0.08] space-y-4">
+            <div className="p-4 sm:p-6 rounded-2xl bg-[#0a0e1b] border border-white/[0.08] space-y-4">
               <div className="space-y-1">
                 <label className={lbl}>Site Title</label>
                 <input
@@ -1597,7 +1774,7 @@ export function AdminDashboard({ onBackToSite }) {
                   className={inp}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className={lbl}>Hero Heading</label>
                   <input
