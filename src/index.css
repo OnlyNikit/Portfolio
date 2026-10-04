@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-heading: 'Outfit', sans-serif;
+    --font-subheading: 'Outfit', sans-serif;
+    --font-sans: 'Plus Jakarta Sans', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    /* Dynamic Theme Variables */
+    --theme-primary: #00f2fe;
+    --theme-secondary: #8b5cf6;
+    --theme-glow: rgba(0, 242, 254, 0.35);
+    --theme-bg: #05070e;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--theme-bg, #05070e);
+    color: #e2e8f0;
+    overflow-x: hidden;
+    transition: background-color 0.4s ease;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.025em;
+  }
+
+  h4, h5, h6 {
+    font-family: var(--font-subheading);
+    letter-spacing: -0.015em;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #05070e;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e2238;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3b4268;
+}
+
+/* Glassmorphism surface */
+.glass-panel {
+  background: rgba(11, 14, 25, 0.75);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Box Glow Effects */
+.box-glow {
+  box-shadow: 0 0 25px -5px var(--theme-glow, rgba(0, 242, 254, 0.28)), 0 8px 24px -4px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.box-glow-hover {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.box-glow-hover:hover {
+  border-color: var(--theme-primary, #00f2fe);
+  box-shadow: 0 0 35px -2px var(--theme-glow, rgba(0, 242, 254, 0.38)), 0 12px 30px -4px rgba(0, 0, 0, 0.7);
+  transform: translateY(-2px);
+}
+
+.box-glow-active {
+  box-shadow: 0 0 35px -2px var(--theme-glow, rgba(0, 242, 254, 0.38)), 0 0 15px var(--theme-glow, rgba(0, 242, 254, 0.25));
+  border-color: var(--theme-primary, #00f2fe);
+}
+
+/* Glowing utilities */
+.glow-primary {
+  box-shadow: 0 0 35px -5px var(--theme-glow);
+}
+
+.glow-text-primary {
+  text-shadow: 0 0 20px var(--theme-glow);
+}
+
+/* Subtle animated border gradient */
+@keyframes border-rotate {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+.animate-border-glow {
+  animation: border-rotate 12s linear infinite;
+}
