@@ -21,6 +21,37 @@ function createSignature(
     .digest('hex');
 }
 
+function getCloudinaryConfig() {
+  return {
+    cloudName: (process.env.CLOUDINARY_CLOUD_NAME || '').trim(),
+    apiKey: (process.env.CLOUDINARY_API_KEY || '').trim(),
+    apiSecret: (process.env.CLOUDINARY_API_SECRET || '').trim(),
+  };
+}
+
+// Base64 ka max size (~14MB data = ~10MB image)
+const MAX_DATA_LENGTH = 14 * 1024 * 1024;
+
+/**
+ * ADMIN - Cloudinary config check (debug)
+ * Browser console mein ya Network tab mein /api/media/config-check dekho
+ */
+mediaRouter.get(
+  '/config-check',
+  requireAdmin,
+  (_req: Request, res: Response) => {
+    const { cloudName, apiKey, apiSecret } = getCloudinaryConfig();
+
+    res.json({
+      success: true,
+      CLOUDINARY_CLOUD_NAME: cloudName ? `set (${cloudName})` : 'MISSING',
+      CLOUDINARY_API_KEY: apiKey ? `set (${apiKey.length} chars)` : 'MISSING',
+      CLOUDINARY_API_SECRET: apiSecret ? `set (${apiSecret.length} chars)` : 'MISSING',
+      nodeVersion: process.version,
+    });
+  }
+);
+
 /**
  * ADMIN - Get media
  */
@@ -30,14 +61,9 @@ mediaRouter.get(
   async (_req: Request, res: Response) => {
     try {
       const media = await dbService.getMedia();
-
-      res.json({
-        success: true,
-        media,
-      });
+      res.json({ success: true, media });
     } catch (error) {
       console.error('Get media error:', error);
-
       res.status(500).json({
         success: false,
         message: 'Failed to fetch media',
@@ -54,78 +80,96 @@ mediaRouter.post(
   requireAdmin,
   async (req: Request, res: Response) => {
     try {
-      const { name, data, type } = req.body;
+      const { name, data, type } = req.body || {};
 
-      if (!data) {
+      if (!data || typeof data !== 'string') {
         return res.status(400).json({
           success: false,
-          message: 'Image data is required',
+          error: 'Image data is required',
         });
       }
 
-      if (!type || !String(type).startsWith('image/')) {
+      if (!data.startsWith('data:image/')) {
         return res.status(400).json({
           success: false,
-          message: 'Only image files are allowed',
+          error: 'Sirf image file allowed hai',
         });
       }
 
-      const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-      const apiKey = process.env.CLOUDINARY_API_KEY;
-      const apiSecret = process.env.CLOUDINARY_API_SECRET;
+      if (type && !String(type).startsWith('image/')) {
+        return res.status(400).json({
+          success: false,
+          error: 'Only image files are allowed',
+        });
+      }
+
+      if (data.length > MAX_DATA_LENGTH) {
+        return res.status(413).json({
+          success: false,
+          error: 'Image bahut badi hai (max ~10MB). Chhoti image upload karo.',
+        });
+      }
+
+      const { cloudName, apiKey, apiSecret } = getCloudinaryConfig();
 
       if (!cloudName || !apiKey || !apiSecret) {
+        console.error('Cloudinary env missing:', {
+          cloudName: !!cloudName,
+          apiKey: !!apiKey,
+          apiSecret: !!apiSecret,
+        });
+
         return res.status(500).json({
           success: false,
-          message: 'Cloudinary environment variables are not configured',
+          error:
+            'Server pe Cloudinary keys set nahi hain. Render > Environment mein CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET add karo.',
         });
       }
 
-      const timestamp = Math.floor(Date.now() / 1000);
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const folder = 'portfolio';
 
-      /*
-       * Do NOT add public_id unless it is also included
-       * in the signature.
-       */
-      const signature = createSignature(
-        { timestamp: String(timestamp) },
-        apiSecret
-      );
+      // Signature mein wahi params jo form mein bhej rahe hain (file, api_key chhodke)
+      const signature = createSignature({ folder, timestamp }, apiSecret);
 
       const formData = new FormData();
-
-      formData.append('file', String(data));
+      formData.append('file', data);
       formData.append('api_key', apiKey);
-      formData.append('timestamp', String(timestamp));
+      formData.append('timestamp', timestamp);
+      formData.append('folder', folder);
       formData.append('signature', signature);
 
-      const cloudinaryUrl =
-        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+      const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
 
-      const response = await fetch(cloudinaryUrl, {
-        method: 'POST',
-        body: formData,
-      });
+      let response: globalThis.Response;
+      try {
+        response = await fetch(cloudinaryUrl, {
+          method: 'POST',
+          body: formData,
+        });
+      } catch (networkError: any) {
+        console.error('Cloudinary network error:', networkError);
+        return res.status(502).json({
+          success: false,
+          error: `Cloudinary se connect nahi ho paya: ${networkError?.message || 'network error'}`,
+        });
+      }
 
-      const cloudinaryData = await response.json();
+      const cloudinaryData: any = await response.json().catch(() => ({}));
 
       if (!response.ok || !cloudinaryData.secure_url) {
-        console.error(
-          'Cloudinary upload failed:',
-          cloudinaryData
-        );
+        console.error('Cloudinary upload failed:', response.status, cloudinaryData);
 
         return res.status(502).json({
           success: false,
-          message: 'Cloudinary upload failed',
-          error: cloudinaryData?.error?.message || 'Unknown error',
+          error: `Cloudinary error: ${
+            cloudinaryData?.error?.message || `status ${response.status}`
+          }`,
         });
       }
 
       const media = await dbService.addMedia({
-        name: name
-          ? String(name).trim()
-          : `upload_${Date.now()}`,
+        name: name ? String(name).trim() : `upload_${Date.now()}`,
         url: cloudinaryData.secure_url,
         size: Number(cloudinaryData.bytes) || 0,
       });
@@ -134,12 +178,12 @@ mediaRouter.post(
         success: true,
         item: media,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Media upload error:', error);
 
       res.status(500).json({
         success: false,
-        message: 'Failed to upload media',
+        error: `Upload fail: ${error?.message || 'unknown error'}`,
       });
     }
   }
@@ -153,9 +197,7 @@ mediaRouter.delete(
   requireAdmin,
   async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
-
-      const deleted = await dbService.deleteMedia(id);
+      const deleted = await dbService.deleteMedia(req.params.id);
 
       if (!deleted) {
         return res.status(404).json({
@@ -170,7 +212,6 @@ mediaRouter.delete(
       });
     } catch (error) {
       console.error('Delete media error:', error);
-
       res.status(500).json({
         success: false,
         message: 'Failed to delete media',

@@ -49,6 +49,57 @@ const PROFILE_FIELDS = [
   ["skillsHighlight", "Card Skills Highlight (Comma separated)"]
 ];
 
+// Upload se pehle image chhoti kar deta hai (max 1920px) taaki upload fail na ho
+function compressImage(file, maxSize = 1920, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    if (!file.type || !file.type.startsWith("image/")) {
+      reject(new Error("Sirf image file allowed hai (JPG, PNG, WEBP)"));
+      return;
+    }
+
+    // GIF / SVG ko jaisa hai waisa bhejo
+    if (file.type === "image/gif" || file.type === "image/svg+xml") {
+      const r = new FileReader();
+      r.onload = () => resolve({ data: r.result, type: file.type });
+      r.onerror = () => reject(new Error("File read failed"));
+      r.readAsDataURL(file);
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const width = Math.round(img.width * scale);
+      const height = Math.round(img.height * scale);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      const outType = file.type === "image/png" ? "image/png" : "image/jpeg";
+
+      if (outType === "image/jpeg") {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+
+      resolve({ data: canvas.toDataURL(outType, quality), type: outType });
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Image read nahi ho payi. JPG ya PNG try karo."));
+    };
+
+    img.src = url;
+  });
+}
 // 755px ya usse chhoti screen = mobile
 const MOBILE_QUERY = "(max-width: 755px)";
 
@@ -289,22 +340,18 @@ export function AdminDashboard({ onBackToSite }) {
       return false;
     }
   };
-
-  const handleImageUpload = (file, callback) => {
-    const reader = new FileReader();
-    reader.onerror = () => showFeedback("File read failed", true);
-    reader.onload = async () => {
-      try {
-        const res = await api.uploadMedia(file.name, reader.result, file.type);
-        callback(res.item.url);
-        loadMedia();
-        showFeedback("Image uploaded and applied!");
-      } catch (err) {
-        showFeedback(err?.message || "Image upload failed", true);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
+const handleImageUpload = async (file, callback) => {
+  try {
+    showFeedback("Uploading...");
+    const { data, type } = await compressImage(file);
+    const res = await api.uploadMedia(file.name, data, type);
+    callback(res.item.url);
+    loadMedia();
+    showFeedback("Image uploaded and applied!");
+  } catch (err) {
+    showFeedback(err?.message || "Image upload failed", true);
+  }
+};
 
   const handleSaveProfile = async () => {
     try {
