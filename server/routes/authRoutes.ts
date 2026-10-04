@@ -1,86 +1,145 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import bcrypt from 'bcryptjs';
-import { dbService } from '../services/db.ts';
 import { generateToken, requireAdmin, type AuthRequest } from '../middleware/auth.ts';
 
 export const authRouter = Router();
 
-// Login
+/**
+ * Read admin credentials from environment variables.
+ *
+ * Render:
+ * ADMIN_EMAIL=your-admin-email
+ * ADMIN_PASSWORD=your-admin-password
+ */
+function getAdminCredentials() {
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (!adminEmail || !adminPassword) {
+    throw new Error(
+      'ADMIN_EMAIL and ADMIN_PASSWORD are not configured.'
+    );
+  }
+
+  return {
+    email: adminEmail,
+    password: adminPassword,
+  };
+}
+
+// ============================================================
+// LOGIN
+// POST /api/auth/login
+// ============================================================
+
 authRouter.post('/login', (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-  if (!email || !password) {
-    res.status(400).json({ error: 'Email and password are required' });
-    return;
+    if (!email || !password) {
+      res.status(400).json({
+        success: false,
+        error: 'Email and password are required',
+      });
+      return;
+    }
+
+    const admin = getAdminCredentials();
+
+    const isEmailMatch =
+      email.trim().toLowerCase() === admin.email;
+
+    const isPasswordMatch =
+      password === admin.password;
+
+    if (!isEmailMatch || !isPasswordMatch) {
+      res.status(401).json({
+        success: false,
+        error: 'Invalid credentials. Please verify email and password.',
+      });
+      return;
+    }
+
+    const token = generateToken({
+      email: admin.email,
+      role: 'admin',
+    });
+
+    // HTTP-only authentication cookie
+    res.cookie('admin_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+
+    res.status(200).json({
+      success: true,
+      token,
+      user: {
+        email: admin.email,
+        role: 'admin',
+      },
+    });
+  } catch (error) {
+    console.error('Admin login error:', error);
+
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+    });
   }
+});
 
-  const admin = dbService.getAdminUser();
+// ============================================================
+// LOGOUT
+// POST /api/auth/logout
+// ============================================================
 
-  const isEmailMatch = email.trim().toLowerCase() === admin.email.toLowerCase();
-  const isPassMatch = bcrypt.compareSync(password, admin.passwordHash);
-
-  if (!isEmailMatch || !isPassMatch) {
-    res.status(401).json({ error: 'Invalid credentials. Please verify email and password.' });
-    return;
-  }
-
-  const token = generateToken({ email: admin.email, role: 'admin' });
-
-  // Set HTTP-only cookie
-  res.cookie('admin_token', token, {
+authRouter.post('/logout', (_req: Request, res: Response) => {
+  res.clearCookie('admin_token', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    path: '/',
   });
 
-  res.json({
+  res.status(200).json({
     success: true,
-    token,
-    user: {
-      email: admin.email,
-      role: 'admin'
-    }
+    message: 'Logged out successfully',
   });
 });
 
-// Logout
-authRouter.post('/logout', (_req: Request, res: Response) => {
-  res.clearCookie('admin_token');
-  res.json({ success: true, message: 'Logged out successfully' });
-});
+// ============================================================
+// CURRENT SESSION
+// GET /api/auth/me
+// ============================================================
 
-// Get current session
-authRouter.get('/me', requireAdmin, (req: AuthRequest, res: Response) => {
-  res.json({
-    authenticated: true,
-    user: req.user
-  });
-});
-
-// Change password
-authRouter.post('/change-password', requireAdmin, (req: AuthRequest, res: Response) => {
-  const { currentPassword, newPassword } = req.body;
-
-  if (!currentPassword || !newPassword) {
-    res.status(400).json({ error: 'Current password and new password are required' });
-    return;
+authRouter.get(
+  '/me',
+  requireAdmin,
+  (req: AuthRequest, res: Response) => {
+    res.status(200).json({
+      authenticated: true,
+      user: req.user,
+    });
   }
+);
 
-  const admin = dbService.getAdminUser();
-  if (!bcrypt.compareSync(currentPassword, admin.passwordHash)) {
-    res.status(400).json({ error: 'Current password incorrect' });
-    return;
+// ============================================================
+// CHANGE PASSWORD
+// POST /api/auth/change-password
+// ============================================================
+
+authRouter.post(
+  '/change-password',
+  requireAdmin,
+  (req: AuthRequest, res: Response) => {
+    res.status(501).json({
+      success: false,
+      error:
+        'Password change is disabled for environment-based admin authentication. Update ADMIN_PASSWORD in your environment variables.',
+    });
   }
-
-  if (newPassword.length < 6) {
-    res.status(400).json({ error: 'New password must be at least 6 characters long' });
-    return;
-  }
-
-  const newHash = bcrypt.hashSync(newPassword, 10);
-  dbService.updateAdminPassword(newHash);
-
-  res.json({ success: true, message: 'Password updated successfully' });
-});
+);
