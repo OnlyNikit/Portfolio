@@ -5,45 +5,135 @@ import { requireAdmin } from '../middleware/auth.ts';
 
 export const settingsRouter = Router();
 
-// GET all public settings
-settingsRouter.get('/', (_req: Request, res: Response) => {
+/**
+ * PUBLIC - Site settings
+ */
+settingsRouter.get('/', async (_req: Request, res: Response) => {
   try {
-    const siteSettings = dbService.getSiteSettings();
-    const threeSettings = dbService.getThreeSettings();
-    res.json({ site: siteSettings, three: threeSettings });
-  } catch (err: any) {
-    res.status(500).json({ error: 'Failed to retrieve settings', details: err.message });
+    const settings = await dbService.getSiteSettings();
+
+    res.json({
+      success: true,
+      settings,
+    });
+  } catch (error) {
+    console.error('Get settings error:', error);
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch settings',
+    });
   }
 });
 
-// PUT update site settings (Admin only)
-settingsRouter.put('/site', requireAdmin, (req: Request, res: Response) => {
+/**
+ * ADMIN - Update site settings
+ */
+settingsRouter.put(
+  '/',
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const data = req.body;
+
+      if (!data || typeof data !== 'object') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid settings data',
+        });
+      }
+
+      const settings = await dbService.updateSiteSettings(data);
+
+      res.json({
+        success: true,
+        settings,
+      });
+    } catch (error) {
+      console.error('Update settings error:', error);
+
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update settings',
+      });
+    }
+  }
+);
+
+/**
+ * PUBLIC - 3D settings
+ */
+settingsRouter.get('/three', async (_req: Request, res: Response) => {
   try {
-    const updated = dbService.updateSiteSettings(req.body);
-    res.json({ success: true, settings: updated });
-  } catch (err: any) {
-    res.status(500).json({ error: 'Failed to update site settings', details: err.message });
+    const settings = await dbService.getThreeSettings();
+
+    res.json({
+      success: true,
+      settings,
+    });
+  } catch (error) {
+    console.error('Get 3D settings error:', error);
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch 3D settings',
+    });
   }
 });
 
-// PUT update 3D settings (Admin only)
-settingsRouter.put('/3d', requireAdmin, (req: Request, res: Response) => {
-  try {
-    // Sanitize values to prevent performance destruction
-    const updates = { ...req.body };
-    if (updates.particleDensity !== undefined) {
-      updates.particleDensity = Math.min(150, Math.max(10, Number(updates.particleDensity)));
-    }
-    if (updates.animationIntensity !== undefined) {
-      updates.animationIntensity = Math.min(2.0, Math.max(0.2, Number(updates.animationIntensity)));
-    }
-    if (updates.cardTiltIntensity !== undefined) {
-      updates.cardTiltIntensity = Math.min(2.5, Math.max(0.1, Number(updates.cardTiltIntensity)));
-    }
+/**
+ * ADMIN - Update 3D settings
+ */
+settingsRouter.put(
+  '/three',
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const data = req.body;
 
-    const updated = dbService.updateThreeSettings(updates);
-    res.json({ success: true, settings: updated });
-  } catch (err: any) {
-    res.status(500).json({ error: 'Failed to update 3D settings', details: err.message });
+      if (!data || typeof data !== 'object') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid 3D settings',
+        });
+      }
+
+      const numericFields = [
+        'particleDensity',
+        'animationIntensity',
+        'glowIntensity',
+        'cardTilt',
+        'parallax',
+      ];
+
+      for (const field of numericFields) {
+        if (data[field] !== undefined) {
+          const value = Number(data[field]);
+
+          if (!Number.isFinite(value) || value < 0) {
+            return res.status(400).json({
+              success: false,
+              message: `Invalid value for ${field}`,
+            });
+          }
+
+          data[field] = value;
+        }
+      }
+
+      const settings = await dbService.updateThreeSettings(data);
+
+      res.json({
+        success: true,
+        settings,
+      });
+    } catch (error) {
+      console.error('Update 3D settings error:', error);
+
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update 3D settings',
+      });
+    }
   }
-});
+);
