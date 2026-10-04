@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { usePortfolio } from '../../context/PortfolioContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
@@ -11,7 +12,13 @@ export function ThumbnailShowcaseSection({
   const { themeConfig } = useTheme();
   const { t, language } = useLanguage();
 
-  const featuredThumbnails = thumbnails.slice(0, 2);
+  // Pehle Featured, phir baaki. Max 4 dikhenge.
+  const featuredThumbnails = useMemo(() => {
+    const list = Array.isArray(thumbnails) ? thumbnails : [];
+    const featured = list.filter((item) => item.featured);
+    const rest = list.filter((item) => !item.featured);
+    return [...featured, ...rest].slice(0, 4);
+  }, [thumbnails]);
 
   return (
     <section id="thumbnails" className="py-24 relative overflow-hidden bg-[#060812] border-t border-white/[0.04]">
@@ -49,7 +56,13 @@ export function ThumbnailShowcaseSection({
           </button>
         </div>
 
-        {/* Featured 3D Cards Showcase with box glow */}
+        {featuredThumbnails.length === 0 && (
+          <div className="p-10 text-center text-slate-500 font-mono text-sm rounded-3xl bg-[#0c1022] border border-white/[0.06]">
+            Thumbnails jaldi hi add honge.
+          </div>
+        )}
+
+        {/* Featured Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {featuredThumbnails.map((thumb) => (
             <div
@@ -58,16 +71,18 @@ export function ThumbnailShowcaseSection({
               onClick={() => onOpenThumbnailModal(thumb)}
               className="group relative rounded-3xl overflow-hidden bg-[#0c1022] border border-white/[0.08] hover:border-cyan-400/50 transition-all duration-300 shadow-2xl hover:shadow-cyan-500/15 cursor-pointer flex flex-col box-glow-hover"
             >
-              {/* Image Container with 16:9 Aspect Ratio */}
               <div className="relative aspect-video overflow-hidden bg-slate-900">
                 <img
                   src={thumb.image}
                   alt={thumb.title}
                   referrerPolicy="no-referrer"
+                  loading="lazy"
+                  onError={(e) => {
+                    e.currentTarget.style.opacity = '0.15';
+                  }}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
 
-                {/* Glassy metadata overlay */}
                 <div className="absolute top-4 left-4 z-10">
                   <span
                     className="px-3 py-1 rounded-xl text-[11px] font-mono font-bold backdrop-blur-md border border-white/20 shadow-md box-glow"
@@ -80,7 +95,6 @@ export function ThumbnailShowcaseSection({
                   </span>
                 </div>
 
-                {/* Hover overlay hint */}
                 <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
                   <span
                     className="px-4 py-2 rounded-xl text-slate-950 font-bold text-xs shadow-lg flex items-center gap-1.5 box-glow"
@@ -94,9 +108,10 @@ export function ThumbnailShowcaseSection({
                 </div>
               </div>
 
-              {/* Title & Client details */}
               <div className="p-6 space-y-2">
-                <div className="text-xs font-mono text-slate-400">Client: {thumb.client}</div>
+                <div className="text-xs font-mono text-slate-400">
+                  Client: {thumb.client || 'Original Concept'}
+                </div>
                 <h3 className="text-lg sm:text-xl font-bold text-white group-hover:text-cyan-300 transition-colors font-heading leading-snug">
                   {thumb.title}
                 </h3>

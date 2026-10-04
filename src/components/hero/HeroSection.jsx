@@ -21,6 +21,16 @@ export function HeroSection({
   const currentYear = profile?.currentYear || '2nd Year';
   const location = profile?.location || 'Lucknow, India';
 
+  // Admin se set ki hui tagline (English). Hindi mein translation dikhegi.
+  const tagline =
+    language === 'hi'
+      ? t('hero_tagline')
+      : profile?.tagline || siteSettings?.heroSubtitle || t('hero_tagline');
+
+  const nameParts = displayName.trim().split(' ');
+  const firstName = nameParts[0];
+  const restName = nameParts.slice(1).join(' ');
+
   return (
     <section id="home" className="relative min-h-screen flex items-center justify-center pt-24 pb-16 overflow-hidden">
       {/* 3D WebGL Particle Canvas */}
@@ -43,8 +53,8 @@ export function HeroSection({
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
             className="lg:col-span-7 space-y-6 text-center lg:text-left"
           >
-            {/* Subtle editorial kicker */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/[0.04] border border-cyan-500/30 text-xs text-slate-300 font-mono box-glow">
+            {/* Kicker */}
+            <div className="inline-flex flex-wrap items-center justify-center gap-2 px-4 py-1.5 rounded-full bg-white/[0.04] border border-cyan-500/30 text-xs text-slate-300 font-mono box-glow">
               <span
                 className="w-2 h-2 rounded-full animate-pulse"
                 style={{ backgroundColor: themeConfig.primaryColor }}
@@ -59,14 +69,14 @@ export function HeroSection({
             {/* Main Headline */}
             <div className="space-y-2">
               <h1 className="text-4xl sm:text-6xl xl:text-7xl font-extrabold tracking-tight text-white uppercase leading-[1.05] font-heading">
-                {displayName.split(' ')[0]} <br className="hidden sm:inline" />
+                {firstName} <br className="hidden sm:inline" />
                 <span
                   className="bg-clip-text text-transparent bg-gradient-to-r"
                   style={{
                     backgroundImage: `linear-gradient(to right, ${themeConfig.primaryColor}, #ffffff, ${themeConfig.secondaryColor})`,
                   }}
                 >
-                  {displayName.split(' ').slice(1).join(' ') || 'KUMAR'}
+                  {restName || 'KUMAR'}
                 </span>
               </h1>
 
@@ -74,7 +84,7 @@ export function HeroSection({
                 className="text-sm sm:text-base md:text-lg font-mono tracking-widest font-semibold uppercase pt-1"
                 style={{ color: themeConfig.primaryColor }}
               >
-                {t('hero_tagline')}
+                {tagline}
               </p>
             </div>
 
@@ -91,7 +101,7 @@ export function HeroSection({
               )}
             </p>
 
-            {/* Action Buttons: Explore, Thumbnails & JS Console (NO download button here as requested - strictly in sidebar) */}
+            {/* Action Buttons */}
             <div className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-3.5">
               <button
                 onClick={onExploreProjects}
@@ -113,7 +123,6 @@ export function HeroSection({
                 <span>{t('hero_thumbnail_gallery')}</span>
               </button>
 
-              {/* Interactive JavaScript Console Trigger */}
               {onOpenJsConsole && (
                 <button
                   onClick={onOpenJsConsole}
@@ -145,7 +154,7 @@ export function HeroSection({
             </div>
           </motion.div>
 
-          {/* Right Column: Interactive 3D Digital Identity Card */}
+          {/* Right Column: 3D Digital Identity Card */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, ExternalLink, X, Sparkles, Filter } from 'lucide-react';
+import { ArrowLeft, X, Sparkles, Filter } from 'lucide-react';
 import { usePortfolio } from '../../context/PortfolioContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { useLanguage } from '../../context/LanguageContext.jsx';
@@ -12,22 +12,26 @@ export function ThumbnailGalleryPage({ onBackToHome }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [lightboxThumb, setLightboxThumb] = useState(null);
 
+  const list = Array.isArray(thumbnails) ? thumbnails : [];
+
   const categories = useMemo(() => {
     const set = new Set();
-    thumbnails.forEach((t) => {
-      if (t.category) set.add(t.category);
+    list.forEach((item) => {
+      if (item.category) set.add(item.category);
     });
     return ['All', ...Array.from(set)];
-  }, [thumbnails]);
+  }, [list]);
 
   const filteredThumbnails = useMemo(() => {
-    if (selectedCategory === 'All') return thumbnails;
-    return thumbnails.filter((t) => t.category.toLowerCase() === selectedCategory.toLowerCase());
-  }, [thumbnails, selectedCategory]);
+    if (selectedCategory === 'All') return list;
+    return list.filter(
+      (item) => (item.category || '').toLowerCase() === selectedCategory.toLowerCase()
+    );
+  }, [list, selectedCategory]);
 
   return (
     <div className="min-h-screen bg-[#05060b] text-white pt-24 pb-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Cinematic ambient background glow */}
+      {/* Ambient glow */}
       <div
         className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[600px] blur-[160px] pointer-events-none opacity-20"
         style={{ backgroundColor: themeConfig.primaryColor }}
@@ -63,7 +67,7 @@ export function ThumbnailGalleryPage({ onBackToHome }) {
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] overflow-x-auto box-glow">
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] overflow-x-auto box-glow max-w-full">
               <div className="px-2 text-slate-500 hidden sm:block">
                 <Filter className="w-3.5 h-3.5" />
               </div>
@@ -91,7 +95,13 @@ export function ThumbnailGalleryPage({ onBackToHome }) {
           </div>
         </div>
 
-        {/* Thumbnails Grid with box glow */}
+        {filteredThumbnails.length === 0 && (
+          <div className="p-10 text-center text-slate-500 font-mono text-sm rounded-3xl bg-[#0c1022] border border-white/[0.06]">
+            Abhi koi thumbnail nahi hai.
+          </div>
+        )}
+
+        {/* Thumbnails Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <AnimatePresence mode="popLayout">
             {filteredThumbnails.map((thumb) => (
@@ -111,6 +121,10 @@ export function ThumbnailGalleryPage({ onBackToHome }) {
                     src={thumb.image}
                     alt={thumb.title}
                     referrerPolicy="no-referrer"
+                    loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.style.opacity = '0.15';
+                    }}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute top-3 left-3 z-10">
@@ -139,7 +153,9 @@ export function ThumbnailGalleryPage({ onBackToHome }) {
 
                 <div className="p-5 space-y-1.5 flex-1 flex flex-col justify-between">
                   <div>
-                    <div className="text-[11px] font-mono text-slate-400">Client: {thumb.client}</div>
+                    <div className="text-[11px] font-mono text-slate-400">
+                      Client: {thumb.client || 'Original Concept'}
+                    </div>
                     <h3 className="text-base font-bold text-white group-hover:text-cyan-300 transition-colors font-heading leading-snug">
                       {thumb.title}
                     </h3>
@@ -156,20 +172,24 @@ export function ThumbnailGalleryPage({ onBackToHome }) {
         {/* Lightbox Modal */}
         <AnimatePresence>
           {lightboxThumb && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md"
+              onClick={() => setLightboxThumb(null)}
+            >
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="relative w-full max-w-4xl rounded-3xl bg-[#090c18] border border-white/[0.1] shadow-2xl p-6 sm:p-8 space-y-4 box-glow"
+                onClick={(e) => e.stopPropagation()}
+                className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-3xl bg-[#090c18] border border-white/[0.1] shadow-2xl p-5 sm:p-8 space-y-4 box-glow"
               >
-                <div className="flex items-start justify-between">
-                  <div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
                     <span
                       className="text-xs font-mono uppercase tracking-wider font-bold"
                       style={{ color: themeConfig.primaryColor }}
                     >
-                      {lightboxThumb.category} · {lightboxThumb.client}
+                      {lightboxThumb.category} · {lightboxThumb.client || 'Original Concept'}
                     </span>
                     <h3 className="text-xl sm:text-2xl font-bold text-white font-heading">
                       {lightboxThumb.title}
@@ -177,7 +197,7 @@ export function ThumbnailGalleryPage({ onBackToHome }) {
                   </div>
                   <button
                     onClick={() => setLightboxThumb(null)}
-                    className="p-2 rounded-xl bg-white/[0.05] text-slate-400 hover:text-white"
+                    className="p-2 rounded-xl bg-white/[0.05] text-slate-400 hover:text-white shrink-0"
                   >
                     <X className="w-5 h-5" />
                   </button>

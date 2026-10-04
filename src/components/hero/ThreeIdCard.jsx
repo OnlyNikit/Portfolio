@@ -1,8 +1,19 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Github, Linkedin, MapPin, Sparkles, Cpu } from 'lucide-react';
 import { usePortfolio } from '../../context/PortfolioContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { useLanguage } from '../../context/LanguageContext.jsx';
+
+function getInitials(name) {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) return 'NK';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
 
 export function ThreeIdCard() {
   const { profile, threeSettings } = usePortfolio();
@@ -12,6 +23,7 @@ export function ThreeIdCard() {
 
   const [tilt, setTilt] = useState({ rotateX: 0, rotateY: 0, glareX: 50, glareY: 50 });
   const [isHovered, setIsHovered] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   const cardTiltMultiplier = threeSettings?.cardTiltIntensity ?? 1.0;
 
@@ -42,22 +54,41 @@ export function ThreeIdCard() {
     setTilt({ rotateX: 0, rotateY: 0, glareX: 50, glareY: 50 });
   };
 
-  const photo = profile?.photo || '/src/assets/images/nikit_avatar_1791095716474.jpg';
+  // ---------- profile data (admin se aata hai) ----------
+  const photo = (profile?.photo || '').trim();
   const fullName = profile?.name || 'NIKIT KUMAR GUPTA';
+  const displayName = profile?.displayName || fullName;
   const tagline = profile?.tagline || 'FULL STACK DEVELOPER • THUMBNAIL DESIGNER';
   const course = profile?.course || 'B.Tech CSE (AI & ML)';
   const currentYear = profile?.currentYear || '2nd Year';
   const college = profile?.college || 'Khwaja Moinuddin Chisti Language University';
   const location = profile?.location || 'Lucknow, India';
+  const collegeStart = profile?.collegeStart || '2025';
+  const collegeEnd = profile?.collegeEnd || '2029';
+
   const skillsHighlight =
     profile?.skillsHighlight && profile.skillsHighlight.length > 0
       ? profile.skillsHighlight
       : ['React', 'Node.js', 'MongoDB', 'Python', 'AI/ML'];
+
   const githubUrl = profile?.githubUrl || 'https://github.com';
   const linkedinUrl = profile?.linkedinUrl || 'https://linkedin.com';
 
+  const initials = getInitials(displayName);
+  const idLabel = `ID: ${initials}-${collegeStart}/${String(collegeEnd).slice(-2)}`;
+
+  // Photo badalte hi error state reset
+  useEffect(() => {
+    setPhotoFailed(false);
+  }, [photo]);
+
+  const showPhoto = photo && !photoFailed;
+
   return (
-    <div className="relative perspective-[1200px] w-full max-w-[430px] mx-auto select-none">
+    <div
+      className="relative w-full max-w-[430px] mx-auto select-none"
+      style={{ perspective: '1200px' }}
+    >
       {/* Glow aura behind card */}
       <div
         className="absolute -inset-3 rounded-3xl blur-2xl opacity-70 transition-all duration-500 pointer-events-none"
@@ -82,7 +113,7 @@ export function ThreeIdCard() {
         }}
         className="relative rounded-3xl bg-gradient-to-b from-[#0f1426] via-[#090c18] to-[#05070e] border border-cyan-500/40 p-6 sm:p-7 shadow-2xl shadow-black/90 overflow-hidden cursor-pointer backdrop-blur-xl box-glow"
       >
-        {/* Dynamic Holographic Glare Sheen */}
+        {/* Holographic Glare Sheen */}
         <div
           className="absolute inset-0 pointer-events-none transition-opacity duration-300"
           style={{
@@ -105,7 +136,7 @@ export function ThreeIdCard() {
               {t('id_card_status')}
             </span>
           </div>
-          <span className="text-[10px] font-mono text-slate-400">ID: NK-2025/29</span>
+          <span className="text-[10px] font-mono text-slate-400">{idLabel}</span>
         </div>
 
         {/* Central Identity Row */}
@@ -118,19 +149,33 @@ export function ThreeIdCard() {
                 background: `linear-gradient(135deg, ${themeConfig.primaryColor}, ${themeConfig.secondaryColor})`,
               }}
             />
-            <img
-              src={photo}
-              alt={fullName}
-              className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border border-white/20 shadow-md"
-              loading="lazy"
-            />
+
+            {showPhoto ? (
+              <img
+                src={photo}
+                alt={fullName}
+                referrerPolicy="no-referrer"
+                onError={() => setPhotoFailed(true)}
+                className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border border-white/20 shadow-md"
+              />
+            ) : (
+              <div
+                className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border border-white/20 shadow-md flex items-center justify-center text-2xl sm:text-3xl font-black text-slate-950 font-heading"
+                style={{
+                  background: `linear-gradient(135deg, ${themeConfig.primaryColor}, ${themeConfig.secondaryColor})`,
+                }}
+                aria-label={fullName}
+              >
+                {initials}
+              </div>
+            )}
           </div>
 
           {/* Name & Academic Credentials */}
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-1.5 text-xs text-cyan-400 font-mono">
               <Cpu className="w-3.5 h-3.5" />
-              <span>{course}</span>
+              <span className="truncate">{course}</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight truncate font-heading">
               {fullName}
@@ -145,7 +190,7 @@ export function ThreeIdCard() {
           </div>
         </div>
 
-        {/* University Info Block with glow */}
+        {/* University Info Block */}
         <div className="mt-4 p-3.5 rounded-2xl bg-white/[0.04] border border-white/[0.08] relative z-10 space-y-1 box-glow">
           <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
             {language === 'hi' ? 'विश्वविद्यालय' : 'University Enrollment'}:
@@ -153,10 +198,12 @@ export function ThreeIdCard() {
           <p className="text-xs font-bold text-slate-200 leading-snug">
             {college}
           </p>
-          <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 font-mono">
-            <span>{language === 'hi' ? 'सत्र' : 'Duration'}: 2025 – 2029</span>
+          <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400 pt-1 font-mono">
+            <span>
+              {language === 'hi' ? 'सत्र' : 'Duration'}: {collegeStart} – {collegeEnd}
+            </span>
             <span
-              className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold shadow-sm"
+              className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold shadow-sm shrink-0"
               style={{
                 backgroundColor: `${themeConfig.primaryColor}25`,
                 color: themeConfig.primaryColor,
