@@ -22,9 +22,9 @@ export function PortfolioProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // --------------------------------------------------
-  // Load all portfolio data
-  // --------------------------------------------------
+  // ==================================================
+  // LOAD ALL PORTFOLIO DATA
+  // ==================================================
 
   const refreshData = useCallback(async () => {
     try {
@@ -39,43 +39,143 @@ export function PortfolioProvider({ children }) {
         thumbData,
         settingsData,
       ] = await Promise.all([
-        api.getProfile().catch(() => null),
-        api.getEducation().catch(() => []),
-        api.getSkills().catch(() => []),
-        api.getProjects().catch(() => []),
-        api.getThumbnails().catch(() => []),
-        api.getSettings().catch(() => ({})),
+        api.getProfile().catch((err) => {
+          console.error('Profile load failed:', err);
+          return null;
+        }),
+
+        api.getEducation().catch((err) => {
+          console.error('Education load failed:', err);
+          return [];
+        }),
+
+        api.getSkills().catch((err) => {
+          console.error('Skills load failed:', err);
+          return [];
+        }),
+
+        api.getProjects().catch((err) => {
+          console.error('Projects load failed:', err);
+          return { projects: [] };
+        }),
+
+        api.getThumbnails().catch((err) => {
+          console.error('Thumbnails load failed:', err);
+          return { thumbnails: [] };
+        }),
+
+        api.getSettings().catch((err) => {
+          console.error('Settings load failed:', err);
+          return {};
+        }),
       ]);
 
+      // --------------------------------------------------
+      // PROFILE
+      // Backend:
+      // { success: true, profile: {...} }
+      // --------------------------------------------------
+
       if (profData) {
-        setProfile(profData);
+        setProfile(
+          profData.profile ??
+          profData.data ??
+          profData
+        );
+      } else {
+        setProfile(null);
       }
 
-      if (Array.isArray(eduData)) {
-        setEducation(eduData);
+      // --------------------------------------------------
+      // EDUCATION
+      // Backend:
+      // [...]
+      // --------------------------------------------------
+
+      const normalizedEducation = Array.isArray(eduData)
+        ? eduData
+        : Array.isArray(eduData?.education)
+          ? eduData.education
+          : Array.isArray(eduData?.data)
+            ? eduData.data
+            : [];
+
+      setEducation(normalizedEducation);
+
+      // --------------------------------------------------
+      // SKILLS
+      // Backend:
+      // [...]
+      // --------------------------------------------------
+
+      const normalizedSkills = Array.isArray(skillsData)
+        ? skillsData
+        : Array.isArray(skillsData?.skills)
+          ? skillsData.skills
+          : Array.isArray(skillsData?.data)
+            ? skillsData.data
+            : [];
+
+      setSkills(normalizedSkills);
+
+      // --------------------------------------------------
+      // PROJECTS
+      // Backend:
+      // { success: true, projects: [...] }
+      // --------------------------------------------------
+
+      const normalizedProjects = Array.isArray(projData)
+        ? projData
+        : Array.isArray(projData?.projects)
+          ? projData.projects
+          : Array.isArray(projData?.data)
+            ? projData.data
+            : [];
+
+      setProjects(normalizedProjects);
+
+      // --------------------------------------------------
+      // THUMBNAILS
+      // Backend:
+      // { success: true, thumbnails: [...] }
+      // --------------------------------------------------
+
+      const normalizedThumbnails = Array.isArray(thumbData)
+        ? thumbData
+        : Array.isArray(thumbData?.thumbnails)
+          ? thumbData.thumbnails
+          : Array.isArray(thumbData?.data)
+            ? thumbData.data
+            : [];
+
+      setThumbnails(normalizedThumbnails);
+
+      // --------------------------------------------------
+      // SETTINGS
+      // Backend:
+      // {
+      //   success: true,
+      //   settings: {
+      //     siteSettings,
+      //     threeSettings
+      //   }
+      // }
+      // --------------------------------------------------
+
+      const settings = settingsData?.settings ?? settingsData ?? {};
+
+      if (settings.siteSettings) {
+        setSiteSettings(settings.siteSettings);
+      } else if (settings.site) {
+        setSiteSettings(settings.site);
       }
 
-      if (Array.isArray(skillsData)) {
-        setSkills(skillsData);
+      if (settings.threeSettings) {
+        setThreeSettings(settings.threeSettings);
+      } else if (settings.three) {
+        setThreeSettings(settings.three);
       }
 
-      if (Array.isArray(projData)) {
-        setProjects(projData);
-      }
-
-      if (Array.isArray(thumbData)) {
-        setThumbnails(thumbData);
-      }
-
-      if (settingsData) {
-        if (settingsData.siteSettings) {
-          setSiteSettings(settingsData.siteSettings);
-        }
-
-        if (settingsData.threeSettings) {
-          setThreeSettings(settingsData.threeSettings);
-        }
-      }
     } catch (err) {
       console.error('Failed to load portfolio data:', err);
 
@@ -99,7 +199,12 @@ export function PortfolioProvider({ children }) {
   // ==================================================
 
   const updateProfile = async (data) => {
-    const updated = await api.updateProfile(data);
+    const response = await api.updateProfile(data);
+
+    const updated =
+      response?.profile ??
+      response?.data ??
+      response;
 
     setProfile(updated);
 
@@ -112,18 +217,33 @@ export function PortfolioProvider({ children }) {
   // ==================================================
 
   const addEducation = async (data) => {
-    const created = await api.createEducation(data);
+    const response = await api.addEducation(data);
 
-    setEducation((prev) => [...prev, created]);
+    const created =
+      response?.item ??
+      response?.education ??
+      response?.data ??
+      response;
+
+    setEducation((prev) => [
+      ...(Array.isArray(prev) ? prev : []),
+      created,
+    ]);
 
     return created;
   };
 
   const updateEducation = async (id, data) => {
-    const updated = await api.updateEducation(id, data);
+    const response = await api.updateEducation(id, data);
+
+    const updated =
+      response?.item ??
+      response?.education ??
+      response?.data ??
+      response;
 
     setEducation((prev) =>
-      prev.map((item) =>
+      (Array.isArray(prev) ? prev : []).map((item) =>
         item._id === id ? updated : item
       )
     );
@@ -135,7 +255,9 @@ export function PortfolioProvider({ children }) {
     await api.deleteEducation(id);
 
     setEducation((prev) =>
-      prev.filter((item) => item._id !== id)
+      (Array.isArray(prev) ? prev : []).filter(
+        (item) => item._id !== id
+      )
     );
 
     return true;
@@ -147,18 +269,33 @@ export function PortfolioProvider({ children }) {
   // ==================================================
 
   const addSkill = async (data) => {
-    const created = await api.createSkill(data);
+    const response = await api.addSkill(data);
 
-    setSkills((prev) => [...prev, created]);
+    const created =
+      response?.item ??
+      response?.skill ??
+      response?.data ??
+      response;
+
+    setSkills((prev) => [
+      ...(Array.isArray(prev) ? prev : []),
+      created,
+    ]);
 
     return created;
   };
 
   const updateSkill = async (id, data) => {
-    const updated = await api.updateSkill(id, data);
+    const response = await api.updateSkill(id, data);
+
+    const updated =
+      response?.item ??
+      response?.skill ??
+      response?.data ??
+      response;
 
     setSkills((prev) =>
-      prev.map((item) =>
+      (Array.isArray(prev) ? prev : []).map((item) =>
         item._id === id ? updated : item
       )
     );
@@ -170,7 +307,9 @@ export function PortfolioProvider({ children }) {
     await api.deleteSkill(id);
 
     setSkills((prev) =>
-      prev.filter((item) => item._id !== id)
+      (Array.isArray(prev) ? prev : []).filter(
+        (item) => item._id !== id
+      )
     );
 
     return true;
@@ -182,18 +321,33 @@ export function PortfolioProvider({ children }) {
   // ==================================================
 
   const addProject = async (data) => {
-    const created = await api.createProject(data);
+    const response = await api.addProject(data);
 
-    setProjects((prev) => [...prev, created]);
+    const created =
+      response?.project ??
+      response?.item ??
+      response?.data ??
+      response;
+
+    setProjects((prev) => [
+      ...(Array.isArray(prev) ? prev : []),
+      created,
+    ]);
 
     return created;
   };
 
   const updateProject = async (id, data) => {
-    const updated = await api.updateProject(id, data);
+    const response = await api.updateProject(id, data);
+
+    const updated =
+      response?.project ??
+      response?.item ??
+      response?.data ??
+      response;
 
     setProjects((prev) =>
-      prev.map((item) =>
+      (Array.isArray(prev) ? prev : []).map((item) =>
         item._id === id ? updated : item
       )
     );
@@ -205,7 +359,9 @@ export function PortfolioProvider({ children }) {
     await api.deleteProject(id);
 
     setProjects((prev) =>
-      prev.filter((item) => item._id !== id)
+      (Array.isArray(prev) ? prev : []).filter(
+        (item) => item._id !== id
+      )
     );
 
     return true;
@@ -217,18 +373,33 @@ export function PortfolioProvider({ children }) {
   // ==================================================
 
   const addThumbnail = async (data) => {
-    const created = await api.createThumbnail(data);
+    const response = await api.addThumbnail(data);
 
-    setThumbnails((prev) => [...prev, created]);
+    const created =
+      response?.thumbnail ??
+      response?.item ??
+      response?.data ??
+      response;
+
+    setThumbnails((prev) => [
+      ...(Array.isArray(prev) ? prev : []),
+      created,
+    ]);
 
     return created;
   };
 
   const updateThumbnail = async (id, data) => {
-    const updated = await api.updateThumbnail(id, data);
+    const response = await api.updateThumbnail(id, data);
+
+    const updated =
+      response?.thumbnail ??
+      response?.item ??
+      response?.data ??
+      response;
 
     setThumbnails((prev) =>
-      prev.map((item) =>
+      (Array.isArray(prev) ? prev : []).map((item) =>
         item._id === id ? updated : item
       )
     );
@@ -240,7 +411,9 @@ export function PortfolioProvider({ children }) {
     await api.deleteThumbnail(id);
 
     setThumbnails((prev) =>
-      prev.filter((item) => item._id !== id)
+      (Array.isArray(prev) ? prev : []).filter(
+        (item) => item._id !== id
+      )
     );
 
     return true;
@@ -252,7 +425,13 @@ export function PortfolioProvider({ children }) {
   // ==================================================
 
   const updateSiteSettings = async (data) => {
-    const updated = await api.updateSiteSettings(data);
+    const response = await api.updateSiteSettings(data);
+
+    const updated =
+      response?.siteSettings ??
+      response?.settings ??
+      response?.data ??
+      response;
 
     setSiteSettings(updated);
 
@@ -260,7 +439,13 @@ export function PortfolioProvider({ children }) {
   };
 
   const updateThreeSettings = async (data) => {
-    const updated = await api.updateThreeSettings(data);
+    const response = await api.updateThreeSettings(data);
+
+    const updated =
+      response?.threeSettings ??
+      response?.settings ??
+      response?.data ??
+      response;
 
     setThreeSettings(updated);
 
@@ -292,7 +477,10 @@ export function PortfolioProvider({ children }) {
   return (
     <PortfolioContext.Provider
       value={{
-        // Data
+        // ----------------------------------------------
+        // DATA
+        // ----------------------------------------------
+
         profile,
         education,
         skills,
@@ -301,41 +489,68 @@ export function PortfolioProvider({ children }) {
         siteSettings,
         threeSettings,
 
-        // Loading / errors
+        // ----------------------------------------------
+        // LOADING / ERROR
+        // ----------------------------------------------
+
         isLoading,
         error,
 
-        // Refresh
+        // ----------------------------------------------
+        // REFRESH
+        // ----------------------------------------------
+
         refreshData,
 
-        // Profile
+        // ----------------------------------------------
+        // PROFILE
+        // ----------------------------------------------
+
         updateProfile,
 
-        // Education
+        // ----------------------------------------------
+        // EDUCATION
+        // ----------------------------------------------
+
         addEducation,
         updateEducation,
         deleteEducation,
 
-        // Skills
+        // ----------------------------------------------
+        // SKILLS
+        // ----------------------------------------------
+
         addSkill,
         updateSkill,
         deleteSkill,
 
-        // Projects
+        // ----------------------------------------------
+        // PROJECTS
+        // ----------------------------------------------
+
         addProject,
         updateProject,
         deleteProject,
 
-        // Thumbnails
+        // ----------------------------------------------
+        // THUMBNAILS
+        // ----------------------------------------------
+
         addThumbnail,
         updateThumbnail,
         deleteThumbnail,
 
-        // Settings
+        // ----------------------------------------------
+        // SETTINGS
+        // ----------------------------------------------
+
         updateSiteSettings,
         updateThreeSettings,
 
-        // Local helpers
+        // ----------------------------------------------
+        // LOCAL HELPERS
+        // ----------------------------------------------
+
         updateProfileLocal,
         updateSiteSettingsLocal,
         updateThreeSettingsLocal,
@@ -346,6 +561,10 @@ export function PortfolioProvider({ children }) {
   );
 }
 
+
+// ==================================================
+// HOOK
+// ==================================================
 
 export function usePortfolio() {
   const context = useContext(PortfolioContext);

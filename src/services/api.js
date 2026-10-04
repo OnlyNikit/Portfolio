@@ -15,11 +15,15 @@ export function clearAuthToken() {
 async function request(endpoint, options = {}) {
   const headers = new Headers(options.headers || {});
 
-  if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
+  if (
+    !headers.has("Content-Type") &&
+    !(options.body instanceof FormData)
+  ) {
     headers.set("Content-Type", "application/json");
   }
 
   const token = getAuthToken();
+
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
@@ -27,13 +31,16 @@ async function request(endpoint, options = {}) {
   const response = await fetch(endpoint, {
     ...options,
     headers,
+    credentials: "include",
   });
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     throw new Error(
-      data.error || `Request failed with status ${response.status}`,
+      data.error ||
+        data.message ||
+        `Request failed with status ${response.status}`,
     );
   }
 
@@ -41,135 +48,253 @@ async function request(endpoint, options = {}) {
 }
 
 export const api = {
-  // Auth
+  // =========================================================
+  // AUTH
+  // =========================================================
+
   login: (email, password) =>
     request("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        email,
+        password,
+      }),
     }),
 
-  getCurrentUser: () => request("/api/auth/me"),
+  getCurrentUser: () =>
+    request("/api/auth/me"),
 
   changePassword: (currentPassword, newPassword) =>
     request("/api/auth/change-password", {
       method: "POST",
-      body: JSON.stringify({ currentPassword, newPassword }),
+      body: JSON.stringify({
+        currentPassword,
+        newPassword,
+      }),
     }),
 
-  // Profile
-  getProfile: () => request("/api/profile"),
+  // =========================================================
+  // PROFILE
+  // =========================================================
+
+  getProfile: () =>
+    request("/api/profile"),
+
   updateProfile: (data) =>
     request("/api/profile", {
       method: "PUT",
       body: JSON.stringify(data),
     }),
 
-  // Education
-  getEducation: () => request("/api/education"),
+  // =========================================================
+  // EDUCATION
+  // =========================================================
+
+  getEducation: () =>
+    request("/api/education"),
+
   createEducation: (data) =>
     request("/api/education", {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  // Compatibility alias for AdminDashboard
+  addEducation: (data) =>
+    request("/api/education", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   updateEducation: (id, data) =>
     request(`/api/education/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
   deleteEducation: (id) =>
     request(`/api/education/${id}`, {
       method: "DELETE",
     }),
 
-  // Skills
-  getSkills: () => request("/api/skills"),
+  // =========================================================
+  // SKILLS
+  // =========================================================
+
+  getSkills: () =>
+    request("/api/skills"),
+
   createSkill: (data) =>
     request("/api/skills", {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  // Compatibility alias for AdminDashboard
+  addSkill: (data) =>
+    request("/api/skills", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   updateSkill: (id, data) =>
     request(`/api/skills/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
   deleteSkill: (id) =>
     request(`/api/skills/${id}`, {
       method: "DELETE",
     }),
 
-  // Projects
-  getProjects: () => request("/api/projects"),
-  getAllProjectsAdmin: () => request("/api/projects/admin/all"),
+  // =========================================================
+  // PROJECTS
+  // =========================================================
+
+  getProjects: () =>
+    request("/api/projects"),
+
+  // Backend route is GET /api/projects/all
+  getAllProjectsAdmin: () =>
+    request("/api/projects/all"),
+
   createProject: (data) =>
     request("/api/projects", {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  // Compatibility alias for AdminDashboard
+  addProject: (data) =>
+    request("/api/projects", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   updateProject: (id, data) =>
     request(`/api/projects/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
   deleteProject: (id) =>
     request(`/api/projects/${id}`, {
       method: "DELETE",
     }),
 
-  // Thumbnails
-  getThumbnails: () => request("/api/thumbnails"),
-  getAllThumbnailsAdmin: () => request("/api/thumbnails/admin/all"),
+  // =========================================================
+  // THUMBNAILS
+  // =========================================================
+
+  getThumbnails: () =>
+    request("/api/thumbnails"),
+
+  // Backend route is GET /api/thumbnails/all
+  getAllThumbnailsAdmin: () =>
+    request("/api/thumbnails/all"),
+
   createThumbnail: (data) =>
     request("/api/thumbnails", {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  // Compatibility alias for AdminDashboard
+  addThumbnail: (data) =>
+    request("/api/thumbnails", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   updateThumbnail: (id, data) =>
     request(`/api/thumbnails/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
   deleteThumbnail: (id) =>
     request(`/api/thumbnails/${id}`, {
       method: "DELETE",
     }),
 
-  // Messages
+  // =========================================================
+  // MESSAGES
+  // =========================================================
+
   sendMessage: (name, email, message) =>
     request("/api/messages", {
       method: "POST",
-      body: JSON.stringify({ name, email, message }),
+      body: JSON.stringify({
+        name,
+        email,
+        message,
+      }),
     }),
-  getMessages: () => request("/api/messages"),
-  markMessageRead: (id) =>
+
+  getMessages: () =>
+    request("/api/messages"),
+
+  markMessageRead: (id, read = true) =>
     request(`/api/messages/${id}/read`, {
       method: "PUT",
+      body: JSON.stringify({
+        read,
+      }),
     }),
+
   deleteMessage: (id) =>
     request(`/api/messages/${id}`, {
       method: "DELETE",
     }),
 
-  // Settings
-  getSettings: () => request("/api/settings"),
+  // =========================================================
+  // SETTINGS
+  // =========================================================
+
+  getSettings: () =>
+    request("/api/settings"),
+
+  // Backend route is PUT /api/settings
   updateSiteSettings: (data) =>
-    request("/api/settings/site", {
+    request("/api/settings", {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
+  getThreeSettings: () =>
+    request("/api/settings/three"),
+
   updateThreeSettings: (data) =>
     request("/api/settings/three", {
       method: "PUT",
       body: JSON.stringify(data),
     }),
 
-  // Media
-  getMedia: () => request("/api/media"),
-  uploadMedia: (data) =>
+  // =========================================================
+  // MEDIA
+  // =========================================================
+
+  getMedia: () =>
+    request("/api/media"),
+
+  /*
+   * AdminDashboard currently calls:
+   *
+   * api.uploadMedia(file.name, base64, file.type)
+   *
+   * So API must support that signature.
+   */
+  uploadMedia: (name, data, type) =>
     request("/api/media/upload", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        name,
+        data,
+        type,
+      }),
     }),
+
   deleteMedia: (id) =>
     request(`/api/media/${id}`, {
       method: "DELETE",
